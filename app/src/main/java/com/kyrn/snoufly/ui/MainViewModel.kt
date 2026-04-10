@@ -64,6 +64,18 @@ class MainViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    val eqEnabledFlow: StateFlow<Boolean> = settingsManager.eqEnabledFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    
+    val eqBandsFlow: StateFlow<List<Int>> = settingsManager.eqBandsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        
+    val playbackSpeedFlow: StateFlow<Float> = settingsManager.playbackSpeedFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.0f)
+
+    val playbackPitchFlow: StateFlow<Float> = settingsManager.playbackPitchFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.0f)
+
     val favorites: StateFlow<List<Song>> = combine(_rawSongs, favoriteIds) { raw, ids ->
         raw.filter { it.id in ids }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

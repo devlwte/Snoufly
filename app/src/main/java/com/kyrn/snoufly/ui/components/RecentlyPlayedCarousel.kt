@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kyrn.snoufly.data.Song
@@ -29,7 +30,8 @@ fun RecentlyPlayedCarousel(
     modifier: Modifier = Modifier,
     onHeaderClick: (() -> Unit)? = null,
     showSeeAllButton: Boolean = false,
-    onSeeAllClick: (() -> Unit)? = null
+    onSeeAllClick: (() -> Unit)? = null,
+    itemWidth: Dp = 140.dp
 ) {
     if (songs.isEmpty()) return
 
@@ -44,7 +46,7 @@ fun RecentlyPlayedCarousel(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
+                style = if (itemWidth < 140.dp) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             if (showSeeAllButton) {
@@ -73,7 +75,7 @@ fun RecentlyPlayedCarousel(
             items(songs, key = { it.id }) { song ->
                 Column(
                     modifier = Modifier
-                        .width(140.dp)
+                        .width(itemWidth)
                         .clickable { onSongClick(song) }
                 ) {
                     AsyncImage(
@@ -87,7 +89,7 @@ fun RecentlyPlayedCarousel(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = song.title,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = if (itemWidth < 140.dp) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

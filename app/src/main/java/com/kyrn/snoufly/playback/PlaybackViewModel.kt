@@ -12,6 +12,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.kyrn.snoufly.data.Song
+import com.kyrn.snoufly.ui.MainViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,8 +45,10 @@ class PlaybackViewModel : ViewModel() {
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
     private var progressJob: Job? = null
+    private var mainViewModel: MainViewModel? = null
 
-    fun initController(context: Context) {
+    fun initController(context: Context, vm: MainViewModel? = null) {
+        if (vm != null) this.mainViewModel = vm
         if (controllerFuture != null) return
         val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
@@ -75,6 +78,11 @@ class PlaybackViewModel : ViewModel() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 _currentMediaItem.value = mediaItem
                 _duration.value = player.duration.coerceAtLeast(0L)
+                
+                // Registro inteligente de historial al cambiar de canción
+                mediaItem?.mediaId?.toLongOrNull()?.let { id ->
+                    mainViewModel?.addToRecentlyPlayed(id)
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -97,10 +105,6 @@ class PlaybackViewModel : ViewModel() {
 
             override fun onRepeatModeChanged(repeatMode: Int) {
                 _repeatMode.value = repeatMode
-            }
-
-            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                // Notified when speed/pitch changes
             }
         })
 

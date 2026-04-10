@@ -14,6 +14,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -91,7 +93,8 @@ class MainActivity : ComponentActivity() {
                     permissionLauncher.launch(permission)
                 } else {
                     mainViewModel.loadSongs()
-                    playbackViewModel.initController(context)
+                    // Vinculamos el MainViewModel para el registro automático de historial y estadísticas
+                    playbackViewModel.initController(context, mainViewModel)
                 }
             }
 
@@ -99,7 +102,6 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        // Ocultar barras en el reproductor a pantalla completa
                         if (currentDestination?.route != Screen.Player.route) {
                             Column {
                                 val currentMediaItem by playbackViewModel.currentMediaItem.collectAsState()
@@ -123,7 +125,6 @@ class MainActivity : ComponentActivity() {
                                             selected = selected,
                                             onClick = {
                                                 if (screen.route == Screen.Library.route) {
-                                                    // RESET TOTAL: Si es Inicio, limpiar todo el backstack hasta la raíz
                                                     navController.popBackStack(navController.graph.findStartDestination().id, false)
                                                 } else {
                                                     navController.navigate(screen.route) {
@@ -142,7 +143,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    // Uso de padding solo inferior para evitar márgenes superiores dobles
                     Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
                         NavHost(
                             navController = navController, 
@@ -155,40 +155,49 @@ class MainActivity : ComponentActivity() {
                                     onSongClick = { index ->
                                         val songs = mainViewModel.songs.value
                                         playbackViewModel.playSongs(songs, index)
-                                        mainViewModel.addToRecentlyPlayed(songs[index].id)
                                         navController.navigate(Screen.Player.route)
                                     },
                                     onSettingsClick = { navController.navigate(Screen.Settings.route) },
                                     onSeeAllListenAgain = { navController.navigate("listen_again") }
                                 )
                             }
+                            @OptIn(ExperimentalMaterial3Api::class)
                             composable("listen_again") {
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    val listenAgain by mainViewModel.listenAgain.collectAsState()
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        Text(
-                                            "Listen Again", 
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            modifier = Modifier.padding(16.dp),
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                            items(listenAgain) { song ->
-                                                SongItem(
-                                                    song = song,
-                                                    isFavorite = mainViewModel.isFavorite(song.id),
-                                                    onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
-                                                    onClick = {
-                                                        val index = mainViewModel.songs.value.indexOf(song)
-                                                        if (index != -1) {
-                                                            playbackViewModel.playSongs(mainViewModel.songs.value, index)
-                                                            navController.navigate(Screen.Player.route)
-                                                        }
-                                                    },
-                                                    onEditClick = {},
-                                                    onSelectLrcClick = {}
-                                                )
+                                Scaffold(
+                                    topBar = {
+                                        TopAppBar(
+                                            title = { Text("Listen Again", fontWeight = FontWeight.Bold) },
+                                            navigationIcon = {
+                                                IconButton(onClick = { navController.popBackStack() }) {
+                                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                                }
                                             }
+                                        )
+                                    }
+                                ) { padding ->
+                                    val listenAgain by mainViewModel.listenAgain.collectAsState()
+                                    val favoriteIds by mainViewModel.favoriteIds.collectAsState() // Recolectamos favoritos como estado
+                                    
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize().padding(padding),
+                                        contentPadding = PaddingValues(bottom = 80.dp)
+                                    ) {
+                                        items(listenAgain) { song ->
+                                            SongItem(
+                                                song = song,
+                                                isFavorite = favoriteIds.contains(song.id), // Verificación reactiva
+                                                onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
+                                                onClick = {
+                                                    val songs = mainViewModel.songs.value
+                                                    val index = songs.indexOf(song)
+                                                    if (index != -1) {
+                                                        playbackViewModel.playSongs(songs, index)
+                                                        navController.navigate(Screen.Player.route)
+                                                    }
+                                                },
+                                                onEditClick = {},
+                                                onSelectLrcClick = {}
+                                            )
                                         }
                                     }
                                 }
@@ -198,7 +207,14 @@ class MainActivity : ComponentActivity() {
                                     viewModel = mainViewModel,
                                     onSongClick = { index ->
                                         val songs = mainViewModel.favorites.value
-                                        playbackViewModel.playSongs(songs, index)
+                                        val globalSongs = mainViewModel.songs.value
+                                        val song = songs[index]
+                                        val globalIndex = globalSongs.indexOf(song)
+                                        if (globalIndex != -1) {
+                                            playbackViewModel.playSongs(globalSongs, globalIndex)
+                                        } else {
+                                            playbackViewModel.playSongs(songs, index)
+                                        }
                                         navController.navigate(Screen.Player.route)
                                     }
                                 )

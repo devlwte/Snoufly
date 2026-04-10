@@ -25,10 +25,10 @@ fun EqualizerScreen(
     playbackViewModel: PlaybackViewModel,
     onBackClick: () -> Unit
 ) {
-    val eqEnabled by mainViewModel.eqEnabledFlow.collectAsState(initial = false)
-    val playbackSpeed by mainViewModel.playbackSpeedFlow.collectAsState(initial = 1.0f)
-    val playbackPitch by mainViewModel.playbackPitchFlowFixed.collectAsState(initial = 1.0f)
-    val eqBands by mainViewModel.eqBandsFlow.collectAsState(initial = emptyList())
+    val eqEnabled by mainViewModel.eqEnabledFlow.collectAsState()
+    val playbackSpeed by mainViewModel.playbackSpeedFlow.collectAsState()
+    val playbackPitch by mainViewModel.playbackPitchFlow.collectAsState()
+    val eqBands by mainViewModel.eqBandsFlow.collectAsState()
 
     // Ensure we have 5 bands (standard for Android)
     val displayBands = remember(eqBands) {

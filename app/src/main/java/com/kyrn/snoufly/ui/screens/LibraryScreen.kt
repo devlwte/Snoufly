@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -12,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
@@ -176,19 +174,6 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     if (searchQuery.isEmpty()) {
-                        if (recentlyPlayed.isNotEmpty()) {
-                            item {
-                                RecentlyPlayedCarousel(
-                                    title = "Recently Played",
-                                    songs = recentlyPlayed,
-                                    onSongClick = { song -> 
-                                        val index = songs.indexOf(song)
-                                        if (index != -1) onSongClick(index)
-                                    }
-                                )
-                            }
-                        }
-
                         if (listenAgain.isNotEmpty()) {
                             item {
                                 RecentlyPlayedCarousel(
@@ -200,7 +185,22 @@ fun LibraryScreen(
                                     },
                                     onHeaderClick = if (listenAgain.size > 10) onSeeAllListenAgain else null,
                                     showSeeAllButton = listenAgain.size > 10,
-                                    onSeeAllClick = onSeeAllListenAgain
+                                    onSeeAllClick = onSeeAllListenAgain,
+                                    itemWidth = 140.dp
+                                )
+                            }
+                        }
+
+                        if (recentlyPlayed.isNotEmpty()) {
+                            item {
+                                RecentlyPlayedCarousel(
+                                    title = "Recently Played",
+                                    songs = recentlyPlayed,
+                                    onSongClick = { song -> 
+                                        val index = songs.indexOf(song)
+                                        if (index != -1) onSongClick(index)
+                                    },
+                                    itemWidth = 110.dp
                                 )
                             }
                         }
