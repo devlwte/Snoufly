@@ -19,7 +19,8 @@ class MusicRepository(private val context: Context) {
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DATE_ADDED
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATA // Ruta real del archivo
         )
 
         val query = context.contentResolver.query(
@@ -38,6 +39,7 @@ class MusicRepository(private val context: Context) {
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -47,6 +49,7 @@ class MusicRepository(private val context: Context) {
                 val duration = cursor.getLong(durationColumn)
                 val albumId = cursor.getLong(albumIdColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn)
+                val path = cursor.getString(dataColumn)
                 
                 val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                 val albumArtUri = ContentUris.withAppendedId(
@@ -54,7 +57,7 @@ class MusicRepository(private val context: Context) {
                     albumId
                 )
 
-                songs.add(Song(id, title, artist, album, duration, contentUri, albumArtUri, dateAdded))
+                songs.add(Song(id, title, artist, album, duration, contentUri, albumArtUri, dateAdded, path))
             }
         }
         songs

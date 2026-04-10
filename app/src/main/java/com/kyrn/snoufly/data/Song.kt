@@ -10,5 +10,6 @@ data class Song(
     val duration: Long,
     val uri: Uri,
     val albumArtUri: Uri?,
-    val dateAdded: Long
+    val dateAdded: Long,
+    val path: String? = null
 )

@@ -31,6 +31,7 @@ import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.components.LyricsView
 import androidx.media3.common.Player
 import com.kyrn.snoufly.ui.MainViewModel
+import java.io.File
 import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +50,7 @@ fun NowPlayingScreen(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val manualLrcMap by mainViewModel.manualLrcMap.collectAsState()
     val favoriteIds by mainViewModel.favoriteIds.collectAsState()
+    val allSongs by mainViewModel.songs.collectAsState()
 
     var showLyrics by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
@@ -78,8 +80,8 @@ fun NowPlayingScreen(
         }
     )
 
-    // Lyrics logic: Manual URI > Auto Search > Mock
-    val lyrics = remember(currentMediaItem, manualLrcMap) {
+    // Lyrics logic: Manual URI > Auto Search (.lrc same name in same folder) > Mock
+    val lyrics = remember(currentMediaItem, manualLrcMap, allSongs) {
         val manualUriStr = manualLrcMap[songId]
         if (manualUriStr != null) {
             try {
@@ -90,8 +92,25 @@ fun NowPlayingScreen(
                 emptyList()
             }
         } else {
-            // Placeholder: Here you'd implement auto-search for .lrc files with same name
-            LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file selected\n[00:10.00]Tap 'More' to select one")
+            // Auto search logic
+            val currentSong = allSongs.find { it.id == songId }
+            val autoLrcContent = currentSong?.path?.let { path ->
+                try {
+                    val audioFile = File(path)
+                    val lrcFile = File(audioFile.parent, audioFile.nameWithoutExtension + ".lrc")
+                    if (lrcFile.exists()) {
+                        lrcFile.readText()
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            
+            if (autoLrcContent != null) {
+                LrcParser.parse(autoLrcContent)
+            } else {
+                LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file selected\n[00:10.00]Tap 'More' to select one")
+            }
         }
     }
 
