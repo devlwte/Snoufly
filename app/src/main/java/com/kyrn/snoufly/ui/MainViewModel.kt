@@ -33,9 +33,21 @@ class MainViewModel(
     val minDuration: StateFlow<Long> = settingsManager.minDurationFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 30000L)
 
-    private val _recentlyPlayedIds = MutableStateFlow<List<Long>>(emptyList())
-    val recentlyPlayed: StateFlow<List<Song>> = combine(_rawSongs, _recentlyPlayedIds) { raw, ids ->
+    val recentlyPlayedIds: StateFlow<List<Long>> = settingsManager.recentlyPlayedIdsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recentlyPlayed: StateFlow<List<Song>> = combine(_rawSongs, recentlyPlayedIds) { raw, ids ->
         ids.mapNotNull { id -> raw.find { it.id == id } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val playCounts: StateFlow<Map<Long, Int>> = settingsManager.playCountsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val listenAgain: StateFlow<List<Song>> = combine(_rawSongs, playCounts) { raw, counts ->
+        counts.entries
+            .sortedByDescending { it.value }
+            .take(35)
+            .mapNotNull { entry -> raw.find { it.id == entry.key } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteIds: StateFlow<Set<Long>> = settingsManager.favoriteIdsFlow
@@ -51,11 +63,6 @@ class MainViewModel(
             }.toMap()
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-
-    val eqEnabledFlow: Flow<Boolean> = settingsManager.eqEnabledFlow
-    val eqBandsFlow: Flow<List<Int>> = settingsManager.eqBandsFlow
-    val playbackSpeedFlow: Flow<Float> = settingsManager.playbackSpeedFlow
-    val playbackPitchFlowFixed: Flow<Float> = settingsManager.playbackPitchFlow
 
     val favorites: StateFlow<List<Song>> = combine(_rawSongs, favoriteIds) { raw, ids ->
         raw.filter { it.id in ids }
@@ -105,7 +112,6 @@ class MainViewModel(
             try {
                 _rawSongs.value = repository.getAllSongs()
             } catch (e: Exception) {
-                // Handle error
             } finally {
                 _isLoading.value = false
             }
@@ -113,13 +119,13 @@ class MainViewModel(
     }
 
     fun addToRecentlyPlayed(songId: Long) {
-        val currentList = _recentlyPlayedIds.value.toMutableList()
-        currentList.remove(songId)
-        currentList.add(0, songId)
-        if (currentList.size > 15) {
-            _recentlyPlayedIds.value = currentList.take(15)
-        } else {
-            _recentlyPlayedIds.value = currentList
+        viewModelScope.launch {
+            val currentList = recentlyPlayedIds.value.toMutableList()
+            currentList.remove(songId)
+            currentList.add(0, songId)
+            val updatedList = if (currentList.size > 30) currentList.take(30) else currentList
+            settingsManager.updateRecentlyPlayed(updatedList)
+            settingsManager.incrementPlayCount(songId)
         }
     }
 
@@ -194,10 +200,5 @@ class MainViewModel(
         viewModelScope.launch {
             settingsManager.updatePlaybackPitch(pitch)
         }
-    }
-
-    fun exportSettings(): String {
-        // Implement full export logic here
-        return "SNFLY_BACKUP_V1..."
     }
 }

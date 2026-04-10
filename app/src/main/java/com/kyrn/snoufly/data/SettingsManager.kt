@@ -22,10 +22,12 @@ class SettingsManager(private val context: Context) {
         val SORT_ORDER = stringPreferencesKey("sort_order")
         val MIN_DURATION = longPreferencesKey("min_duration")
         val FAVORITE_IDS = stringSetPreferencesKey("favorite_ids")
+        val RECENTLY_PLAYED_IDS = stringPreferencesKey("recently_played_ids")
+        val PLAY_COUNTS = stringPreferencesKey("play_counts")
         val CUSTOM_METADATA_MAP = stringPreferencesKey("custom_metadata_map")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val EQ_ENABLED = booleanPreferencesKey("eq_enabled")
-        val EQ_BANDS = stringPreferencesKey("eq_bands") // Comma separated milliBels
+        val EQ_BANDS = stringPreferencesKey("eq_bands") 
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val PLAYBACK_PITCH = floatPreferencesKey("playback_pitch")
     }
@@ -60,6 +62,23 @@ class SettingsManager(private val context: Context) {
         }
         .map { preferences ->
             preferences[PreferencesKeys.FAVORITE_IDS]?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        }
+
+    val recentlyPlayedIdsFlow: Flow<List<Long>> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.RECENTLY_PLAYED_IDS]?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
+        }
+
+    val playCountsFlow: Flow<Map<Long, Int>> = context.dataStore.data
+        .map { preferences ->
+            val raw = preferences[PreferencesKeys.PLAY_COUNTS] ?: ""
+            if (raw.isBlank()) emptyMap()
+            else {
+                raw.split(",").filter { it.contains(":") }.associate {
+                    val parts = it.split(":")
+                    parts[0].toLong() to parts[1].toInt()
+                }
+            }
         }
 
     val customMetadataFlow: Flow<Map<Long, CustomMetadata>> = context.dataStore.data
@@ -103,6 +122,27 @@ class SettingsManager(private val context: Context) {
             val idStr = songId.toString()
             if (newSet.contains(idStr)) newSet.remove(idStr) else newSet.add(idStr)
             preferences[PreferencesKeys.FAVORITE_IDS] = newSet
+        }
+    }
+
+    suspend fun updateRecentlyPlayed(ids: List<Long>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.RECENTLY_PLAYED_IDS] = ids.joinToString(",")
+        }
+    }
+
+    suspend fun incrementPlayCount(songId: Long) {
+        context.dataStore.edit { preferences ->
+            val raw = preferences[PreferencesKeys.PLAY_COUNTS] ?: ""
+            val currentMap = if (raw.isBlank()) mutableMapOf<Long, Int>()
+            else {
+                raw.split(",").filter { it.contains(":") }.associate {
+                    val parts = it.split(":")
+                    parts[0].toLong() to parts[1].toInt()
+                }.toMutableMap()
+            }
+            currentMap[songId] = (currentMap[songId] ?: 0) + 1
+            preferences[PreferencesKeys.PLAY_COUNTS] = currentMap.map { "${it.key}:${it.value}" }.joinToString(",")
         }
     }
 

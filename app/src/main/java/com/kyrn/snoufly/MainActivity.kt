@@ -12,10 +12,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -32,6 +36,7 @@ import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.MainViewModelFactory
 import com.kyrn.snoufly.ui.Screen
 import com.kyrn.snoufly.ui.components.MiniPlayer
+import com.kyrn.snoufly.ui.components.SongItem
 import com.kyrn.snoufly.ui.navItems
 import com.kyrn.snoufly.ui.screens.*
 import com.kyrn.snoufly.ui.theme.SnouflyTheme
@@ -153,8 +158,40 @@ class MainActivity : ComponentActivity() {
                                         mainViewModel.addToRecentlyPlayed(songs[index].id)
                                         navController.navigate(Screen.Player.route)
                                     },
-                                    onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                    onSeeAllListenAgain = { navController.navigate("listen_again") }
                                 )
+                            }
+                            composable("listen_again") {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    val listenAgain by mainViewModel.listenAgain.collectAsState()
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        Text(
+                                            "Listen Again", 
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            modifier = Modifier.padding(16.dp),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                            items(listenAgain) { song ->
+                                                SongItem(
+                                                    song = song,
+                                                    isFavorite = mainViewModel.isFavorite(song.id),
+                                                    onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
+                                                    onClick = {
+                                                        val index = mainViewModel.songs.value.indexOf(song)
+                                                        if (index != -1) {
+                                                            playbackViewModel.playSongs(mainViewModel.songs.value, index)
+                                                            navController.navigate(Screen.Player.route)
+                                                        }
+                                                    },
+                                                    onEditClick = {},
+                                                    onSelectLrcClick = {}
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             composable(Screen.Favorites.route) {
                                 FavoritesScreen(

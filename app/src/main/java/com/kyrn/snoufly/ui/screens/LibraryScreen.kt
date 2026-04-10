@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -11,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
@@ -37,11 +39,13 @@ import java.util.Locale
 fun LibraryScreen(
     viewModel: MainViewModel,
     onSongClick: (Int) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onSeeAllListenAgain: () -> Unit
 ) {
     val context = LocalContext.current
     val songs by viewModel.songs.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val listenAgain by viewModel.listenAgain.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
@@ -71,7 +75,6 @@ fun LibraryScreen(
 
     Scaffold(
         topBar = {
-            // Se restaura statusBarsPadding() para evitar que el contenido quede bajo la hora/iconos de sistema
             Column(modifier = Modifier.statusBarsPadding()) { 
                 AnimatedContent(
                     targetState = isSearchActive,
@@ -172,15 +175,45 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    if (searchQuery.isEmpty() && recentlyPlayed.isNotEmpty()) {
-                        item {
-                            RecentlyPlayedCarousel(
-                                songs = recentlyPlayed,
-                                onSongClick = { song -> 
-                                    val index = songs.indexOf(song)
-                                    if (index != -1) onSongClick(index)
-                                }
-                            )
+                    if (searchQuery.isEmpty()) {
+                        if (recentlyPlayed.isNotEmpty()) {
+                            item {
+                                RecentlyPlayedCarousel(
+                                    title = "Recently Played",
+                                    songs = recentlyPlayed,
+                                    onSongClick = { song -> 
+                                        val index = songs.indexOf(song)
+                                        if (index != -1) onSongClick(index)
+                                    }
+                                )
+                            }
+                        }
+
+                        if (listenAgain.isNotEmpty()) {
+                            item {
+                                RecentlyPlayedCarousel(
+                                    title = "Listen Again",
+                                    songs = listenAgain.take(10),
+                                    onSongClick = { song ->
+                                        val index = songs.indexOf(song)
+                                        if (index != -1) onSongClick(index)
+                                    },
+                                    onHeaderClick = if (listenAgain.size > 10) onSeeAllListenAgain else null,
+                                    showSeeAllButton = listenAgain.size > 10,
+                                    onSeeAllClick = onSeeAllListenAgain
+                                )
+                            }
+                        }
+                        
+                        if (recentlyPlayed.isNotEmpty() || listenAgain.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Your Library",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
                         }
                     }
 
