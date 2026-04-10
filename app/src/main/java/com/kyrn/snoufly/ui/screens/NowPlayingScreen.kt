@@ -58,6 +58,11 @@ fun NowPlayingScreen(
     var loadError by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // REINICIAR loadError cuando cambia la canción para permitir cargar la carátula real
+    LaunchedEffect(currentMediaItem) {
+        loadError = false
+    }
+
     if (currentMediaItem == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No song playing", style = MaterialTheme.typography.headlineSmall)

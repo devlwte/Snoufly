@@ -30,12 +30,14 @@ fun LyricsView(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     
+    // Encontrar el índice de la letra actual basado en el tiempo de reproducción
     val currentIndex = lyrics.indexOfLast { it.timeStamp <= currentPosition }.coerceAtLeast(0)
 
     LaunchedEffect(currentIndex) {
         if (lyrics.isNotEmpty()) {
             coroutineScope.launch {
-                listState.animateScrollToItem(currentIndex, scrollOffset = -200)
+                // Desplazamiento suave para mantener la letra activa en el centro
+                listState.animateScrollToItem(currentIndex, scrollOffset = -300)
             }
         }
     }
@@ -52,17 +54,19 @@ fun LyricsView(
         LazyColumn(
             state = listState,
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 200.dp),
+            contentPadding = PaddingValues(vertical = 250.dp), // Espacio para que la primera/última floten en el centro
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             itemsIndexed(lyrics) { index, lyric ->
                 val isCurrent = index == currentIndex
+                
+                // Animaciones de color y tamaño para estilo Karaoke Premium
                 val color by animateColorAsState(
                     targetValue = if (isCurrent) Color.White else Color.White.copy(alpha = 0.4f),
                     label = "LyricColor"
                 )
                 val fontSize by animateFloatAsState(
-                    targetValue = if (isCurrent) 24f else 18f,
+                    targetValue = if (isCurrent) 32f else 22f, // Tamaños aumentados para legibilidad
                     label = "LyricFontSize"
                 )
 
@@ -70,12 +74,13 @@ fun LyricsView(
                     text = lyric.content,
                     color = color,
                     fontSize = fontSize.sp,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Bold,
                     textAlign = TextAlign.Center,
+                    lineHeight = (fontSize * 1.2).sp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onLyricClick(lyric.timeStamp) }
-                        .padding(vertical = 12.dp, horizontal = 24.dp)
+                        .padding(vertical = 16.dp, horizontal = 24.dp)
                 )
             }
         }
