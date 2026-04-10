@@ -74,4 +74,4 @@ When asking an AI to update Snoufly, use this context:
 ---
 
 ## 📜 License
-Copyright © 2024 Snoufly Team. Built with ❤️ for the Android Community.
+Copyright © 2026 Snoufly Team. Built with ❤️ for the Android Community.
