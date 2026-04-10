@@ -31,6 +31,7 @@ import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.components.LyricsView
 import androidx.media3.common.Player
 import com.kyrn.snoufly.ui.MainViewModel
+import com.kyrn.snoufly.ui.components.AutoCover
 import java.io.File
 import java.io.InputStream
 
@@ -54,6 +55,7 @@ fun NowPlayingScreen(
 
     var showLyrics by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     if (currentMediaItem == null) {
@@ -80,7 +82,6 @@ fun NowPlayingScreen(
         }
     )
 
-    // Lyrics logic: Manual URI > Auto Search (.lrc same name in same folder) > Mock
     val lyrics = remember(currentMediaItem, manualLrcMap, allSongs) {
         val manualUriStr = manualLrcMap[songId]
         if (manualUriStr != null) {
@@ -88,42 +89,35 @@ fun NowPlayingScreen(
                 val inputStream: InputStream? = context.contentResolver.openInputStream(Uri.parse(manualUriStr))
                 val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
                 LrcParser.parse(content)
-            } catch (e: Exception) {
-                emptyList()
-            }
+            } catch (e: Exception) { emptyList() }
         } else {
-            // Auto search logic
             val currentSong = allSongs.find { it.id == songId }
             val autoLrcContent = currentSong?.path?.let { path ->
                 try {
                     val audioFile = File(path)
                     val lrcFile = File(audioFile.parent, audioFile.nameWithoutExtension + ".lrc")
-                    if (lrcFile.exists()) {
-                        lrcFile.readText()
-                    } else null
-                } catch (e: Exception) {
-                    null
-                }
+                    if (lrcFile.exists()) lrcFile.readText() else null
+                } catch (e: Exception) { null }
             }
-            
-            if (autoLrcContent != null) {
-                LrcParser.parse(autoLrcContent)
-            } else {
-                LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file selected\n[00:10.00]Tap 'More' to select one")
-            }
+            if (autoLrcContent != null) LrcParser.parse(autoLrcContent)
+            else LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file selected\n[00:10.00]Tap 'More' to select one")
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AsyncImage(
-            model = albumArtUri,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(50.dp),
-            contentScale = ContentScale.Crop,
-            alpha = 0.5f
-        )
+        // Fondo Desenfoque (Blur) inteligente
+        if (albumArtUri != null && !loadError) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().blur(50.dp),
+                contentScale = ContentScale.Crop,
+                alpha = 0.5f,
+                onError = { loadError = true }
+            )
+        } else {
+            AutoCover(name = title, modifier = Modifier.fillMaxSize().blur(50.dp))
+        }
         
         Box(
             modifier = Modifier
@@ -176,16 +170,26 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
+            // Carátula Central con AutoCover fallback
+            Box(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color.DarkGray.copy(alpha = 0.2f)),
-                contentScale = ContentScale.Crop
-            )
+                    .background(Color.DarkGray.copy(alpha = 0.2f))
+            ) {
+                if (albumArtUri != null && !loadError) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { loadError = true }
+                    )
+                } else {
+                    AutoCover(name = title, modifier = Modifier.fillMaxSize())
+                }
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -227,13 +231,9 @@ fun NowPlayingScreen(
                 
                 Slider(
                     value = if (duration > 0) (currentSliderValue / duration).coerceIn(0f, 1f) else 0f,
-                    onValueChange = { 
-                        sliderPosition = it * duration
-                    },
+                    onValueChange = { sliderPosition = it * duration },
                     onValueChangeFinished = {
-                        sliderPosition?.let {
-                            viewModel.seekTo(it.toLong())
-                        }
+                        sliderPosition?.let { viewModel.seekTo(it.toLong()) }
                         sliderPosition = null
                     },
                     colors = SliderDefaults.colors(
@@ -344,12 +344,8 @@ fun NowPlayingScreen(
             LyricsView(
                 lyrics = lyrics,
                 currentPosition = currentPosition,
-                onLyricClick = { time ->
-                    viewModel.seekTo(time)
-                },
-                modifier = Modifier
-                    .fillMaxHeight(0.9f)
-                    .padding(bottom = 32.dp)
+                onLyricClick = { time -> viewModel.seekTo(time) },
+                modifier = Modifier.fillMaxHeight(0.9f).padding(bottom = 32.dp)
             )
         }
     }

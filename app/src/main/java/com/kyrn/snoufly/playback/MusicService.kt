@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -40,33 +41,33 @@ class MusicService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player).build()
 
-        // Observar cambios en ajustes y aplicarlos al player/equalizer
+        // Sistema inteligente de control de audio
         serviceScope.launch {
-            // Cargar valores iniciales
-            val initialSpeed = settingsManager.playbackSpeedFlow.first()
-            val initialPitch = settingsManager.playbackPitchFlow.first()
-            player.playbackParameters = PlaybackParameters(initialSpeed, initialPitch)
+            combine(
+                settingsManager.eqEnabledFlow,
+                settingsManager.playbackSpeedFlow,
+                settingsManager.playbackPitchFlow
+            ) { enabled, speed, pitch ->
+                Triple(enabled, speed, pitch)
+            }.collect { (enabled, speed, pitch) ->
+                if (enabled) {
+                    // Aplicar valores con protección de rango (Clamping) para evitar bugs de audio
+                    val safeSpeed = speed.coerceIn(0.5f, 2.0f)
+                    val safePitch = pitch.coerceIn(0.5f, 2.0f)
+                    player.playbackParameters = PlaybackParameters(safeSpeed, safePitch)
+                    equalizer?.enabled = true
+                } else {
+                    // Si el motor está desactivado, resetear a valores normales inmediatamente
+                    player.playbackParameters = PlaybackParameters(1.0f, 1.0f)
+                    equalizer?.enabled = false
+                }
+            }
+        }
 
-            // Escuchar cambios en tiempo real
-            launch {
-                settingsManager.playbackSpeedFlow.collect { speed ->
-                    player.playbackParameters = player.playbackParameters.withSpeed(speed)
-                }
-            }
-            launch {
-                settingsManager.playbackPitchFlow.collect { pitch ->
-                    player.playbackParameters = PlaybackParameters(player.playbackParameters.speed, pitch)
-                }
-            }
-            launch {
-                settingsManager.eqEnabledFlow.collect { enabled ->
-                    equalizer?.enabled = enabled
-                }
-            }
-            launch {
-                settingsManager.eqBandsFlow.collect { bands ->
-                    applyBands(bands)
-                }
+        // Observar bandas del ecualizador
+        serviceScope.launch {
+            settingsManager.eqBandsFlow.collect { bands ->
+                applyBands(bands)
             }
         }
 
@@ -90,15 +91,12 @@ class MusicService : MediaSessionService() {
                     applyBands(bands)
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun applyBands(bands: List<Int>) {
         val eq = equalizer ?: return
         if (bands.isEmpty()) return
-        
         try {
             val numBands = eq.numberOfBands.toInt()
             for (i in 0 until numBands) {
@@ -106,21 +104,15 @@ class MusicService : MediaSessionService() {
                     eq.setBandLevel(i.toShort(), bands[i].toShort())
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
-    }
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        if (player != null) {
-            if (!player.playWhenReady || player.mediaItemCount == 0) {
-                stopSelf()
-            }
+        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0)) {
+            stopSelf()
         }
     }
 

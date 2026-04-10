@@ -10,7 +10,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,19 +73,30 @@ fun RecentlyPlayedCarousel(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(songs, key = { it.id }) { song ->
+                var loadError by remember { mutableStateOf(false) }
+                
                 Column(
                     modifier = Modifier
                         .width(itemWidth)
                         .clickable { onSongClick(song) }
                 ) {
-                    AsyncImage(
-                        model = song.albumArtUri,
-                        contentDescription = null,
+                    Box(
                         modifier = Modifier
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        if (song.albumArtUri != null && !loadError) {
+                            AsyncImage(
+                                model = song.albumArtUri,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                onError = { loadError = true }
+                            )
+                        } else {
+                            AutoCover(name = song.title, modifier = Modifier.fillMaxSize())
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = song.title,

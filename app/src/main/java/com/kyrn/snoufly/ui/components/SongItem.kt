@@ -1,6 +1,5 @@
 package com.kyrn.snoufly.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kyrn.snoufly.data.Song
+import androidx.compose.foundation.clickable
 
 @Composable
 fun SongItem(
@@ -28,6 +28,7 @@ fun SongItem(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -36,14 +37,23 @@ fun SongItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = song.albumArtUri,
-            contentDescription = null,
+        Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop
-        )
+                .clip(RoundedCornerShape(8.dp))
+        ) {
+            if (song.albumArtUri != null && !loadError) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = { loadError = true }
+                )
+            } else {
+                AutoCover(name = song.title, modifier = Modifier.fillMaxSize())
+            }
+        }
 
         Spacer(modifier = Modifier.width(16.dp))
 

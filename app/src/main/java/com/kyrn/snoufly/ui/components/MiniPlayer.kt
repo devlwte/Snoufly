@@ -1,6 +1,5 @@
 package com.kyrn.snoufly.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,11 +32,12 @@ fun MiniPlayer(
     val title = metadata.title?.toString() ?: "Unknown"
     val artist = metadata.artist?.toString() ?: "Unknown Artist"
     val albumArtUri = metadata.artworkUri
+    var loadError by remember { mutableStateOf(false) }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -50,14 +49,23 @@ fun MiniPlayer(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
+            Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                if (albumArtUri != null && !loadError) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { loadError = true }
+                    )
+                } else {
+                    AutoCover(name = title, modifier = Modifier.fillMaxSize())
+                }
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
