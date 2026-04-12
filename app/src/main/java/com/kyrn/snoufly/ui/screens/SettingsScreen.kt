@@ -1,6 +1,5 @@
 package com.kyrn.snoufly.ui.screens
 
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,7 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.kyrn.snoufly.R
 import com.kyrn.snoufly.data.BackupInterval
@@ -38,9 +39,12 @@ fun SettingsScreen(
     val backupUri by viewModel.backupUri.collectAsState()
     val backupInterval by viewModel.backupInterval.collectAsState()
     val lastBackupTime by viewModel.lastBackupTime.collectAsState()
+    val lyricsTemplate by viewModel.lyricsApiTemplate.collectAsState()
+    val lyricsUserAgent by viewModel.lyricsUserAgent.collectAsState()
     
     var showThemeDialog by remember { mutableStateOf(false) }
     var showBackupIntervalDialog by remember { mutableStateOf(false) }
+    var showLyricsConfigDialog by remember { mutableStateOf(false) }
 
     val backupExportedMsg = stringResource(R.string.backup_exported)
     val exportFailedMsg = stringResource(R.string.export_failed)
@@ -118,6 +122,14 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsCategory(title = "Lyrics Engine")
+            SettingsItem(
+                icon = Icons.Default.Language,
+                title = "Online Lyrics Provider",
+                subtitle = "Configure API templates and User-Agent",
+                onClick = { showLyricsConfigDialog = true }
+            )
+
             SettingsCategory(title = stringResource(R.string.category_data_backup))
             SettingsItem(
                 icon = Icons.Default.CloudUpload,
@@ -186,6 +198,53 @@ fun SettingsScreen(
                 onClick = {}
             )
         }
+    }
+
+    if (showLyricsConfigDialog) {
+        var tempTemplate by remember { mutableStateOf(lyricsTemplate) }
+        var tempUserAgent by remember { mutableStateOf(lyricsUserAgent) }
+
+        AlertDialog(
+            onDismissRequest = { showLyricsConfigDialog = false },
+            title = { Text("Lyrics API Configuration") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(
+                        value = tempTemplate,
+                        onValueChange = { tempTemplate = it },
+                        label = { Text("API URL Template") },
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = {
+                            Text("Wildcards: %TRACK%, %ARTIST%, %ALBUM%, %DURATION%", fontSize = 10.sp)
+                        }
+                    )
+                    OutlinedTextField(
+                        value = tempUserAgent,
+                        onValueChange = { tempUserAgent = it },
+                        label = { Text("User-Agent") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Note: Your provider must return a JSON with 'syncedLyrics' or 'plainLyrics' fields (LRCLIB standard).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateLyricsSettings(tempTemplate, tempUserAgent)
+                    showLyricsConfigDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLyricsConfigDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showThemeDialog) {

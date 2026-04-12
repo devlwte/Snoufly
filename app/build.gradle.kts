@@ -1,17 +1,17 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // El plugin de Kotlin ya no es necesario aquí en AGP 9.0+
     alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.kyrn.snoufly"
-    compileSdk = 35
+    compileSdk = 36 // Actualizado según recomendaciones anteriores
 
     defaultConfig {
         applicationId = "com.kyrn.snoufly"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36 // Actualizado según recomendaciones anteriores
         versionCode = 1
         versionName = "1.0"
 
@@ -40,8 +40,7 @@ android {
     }
 }
 
-// Esta es la forma moderna (Kotlin 2.0+) de configurar el compilador
-// Debe estar FUERA del bloque android { }
+// Seguimos necesitando configurar el jvmTarget para el compilador de Kotlin integrado
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

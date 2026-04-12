@@ -1,6 +1,5 @@
 package com.kyrn.snoufly.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +32,7 @@ fun EqualizerScreen(
     val playbackPitch by mainViewModel.playbackPitchFlow.collectAsState()
     val eqBands by mainViewModel.eqBandsFlow.collectAsState()
 
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val categories = mainViewModel.audioCategories.keys.toList()
 
     val displayBands = remember(eqBands) {
@@ -96,7 +95,7 @@ fun EqualizerScreen(
 
             // Category Navigation
             Text("Presets & Vocal Styles", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            ScrollableTabRow(
+            SecondaryScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 0.dp,
                 containerColor = Color.Transparent,

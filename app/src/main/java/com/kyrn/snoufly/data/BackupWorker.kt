@@ -1,30 +1,27 @@
 package com.kyrn.snoufly.data
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
 
 class BackupWorker(
     context: Context,
-    params: WorkerParameters,
-    private val backupManager: BackupManager,
-    private val settingsManager: SettingsManager
-) : CoroutineWorker(context, params) {
+    workerParams: WorkerParameters
+) : CoroutineWorker(context, workerParams) {
 
-    override suspend fun doWork(): androidx.work.ListenableWorker.Result {
-        val backupUriString = settingsManager.backupUriFlow.first()
-        if (backupUriString.isNullOrBlank()) return androidx.work.ListenableWorker.Result.failure()
-
-        val backupUri = Uri.parse(backupUriString)
-        val result = backupManager.autoBackup(backupUri)
+    override suspend fun doWork(): Result {
+        val settingsManager = SettingsManager(applicationContext)
+        val backupManager = BackupManager(applicationContext, settingsManager)
         
-        return if (result.isSuccess) {
-            settingsManager.updateLastBackupTime(System.currentTimeMillis())
-            androidx.work.ListenableWorker.Result.success()
+        val backupUri = settingsManager.backupUriFlow.first()
+        
+        return if (!backupUri.isNullOrEmpty()) {
+            val result = backupManager.autoBackup(backupUri.toUri())
+            if (result.isSuccess) Result.success() else Result.retry()
         } else {
-            androidx.work.ListenableWorker.Result.retry()
+            Result.failure()
         }
     }
 }

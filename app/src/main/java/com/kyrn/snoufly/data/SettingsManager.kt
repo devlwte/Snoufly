@@ -39,7 +39,14 @@ class SettingsManager(private val context: Context) {
         val BACKUP_URI = stringPreferencesKey("backup_uri")
         val BACKUP_INTERVAL = stringPreferencesKey("backup_interval")
         val LAST_BACKUP_TIME = longPreferencesKey("last_backup_time")
+
+        // Lyrics API settings
+        val LYRICS_API_TEMPLATE = stringPreferencesKey("lyrics_api_template")
+        val LYRICS_USER_AGENT = stringPreferencesKey("lyrics_user_agent")
     }
+
+    private val DEFAULT_LYRICS_API = "https://lrclib.net/api/get?track_name=%TRACK%&artist_name=%ARTIST%&album_name=%ALBUM%&duration=%DURATION%"
+    private val DEFAULT_USER_AGENT = "Snoufly/1.0.0 (https://github.com/devlwte/Snoufly)"
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
         .catch { exception ->
@@ -118,6 +125,9 @@ class SettingsManager(private val context: Context) {
         try { BackupInterval.valueOf(name) } catch (e: Exception) { BackupInterval.NEVER }
     }
     val lastBackupTimeFlow: Flow<Long> = context.dataStore.data.map { it[PreferencesKeys.LAST_BACKUP_TIME] ?: 0L }
+
+    val lyricsApiTemplateFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_API_TEMPLATE] ?: DEFAULT_LYRICS_API }
+    val lyricsUserAgentFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_USER_AGENT] ?: DEFAULT_USER_AGENT }
 
     suspend fun updateThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences -> preferences[PreferencesKeys.THEME_MODE] = mode.name }
@@ -202,6 +212,13 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updateLastBackupTime(time: Long) {
         context.dataStore.edit { it[PreferencesKeys.LAST_BACKUP_TIME] = time }
+    }
+
+    suspend fun updateLyricsSettings(template: String, userAgent: String) {
+        context.dataStore.edit {
+            it[PreferencesKeys.LYRICS_API_TEMPLATE] = template
+            it[PreferencesKeys.LYRICS_USER_AGENT] = userAgent
+        }
     }
 
     suspend fun restoreAllData(

@@ -1,61 +1,21 @@
 package com.kyrn.snoufly.ui.screens
 
+import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -74,6 +34,7 @@ import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.components.LyricsView
 import com.kyrn.snoufly.ui.components.SnouflyImage
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
 
@@ -85,6 +46,7 @@ fun NowPlayingScreen(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
@@ -108,41 +70,62 @@ fun NowPlayingScreen(
     val metadata = currentMediaItem!!.mediaMetadata
     val title = metadata.title?.toString() ?: "Unknown"
     val artist = metadata.artist?.toString() ?: "Unknown Artist"
+    val albumName = metadata.albumTitle?.toString() ?: ""
     val albumArtUri = metadata.artworkUri
 
     val lrcPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri: Uri? ->
             uri?.let {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        it,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 mainViewModel.updateManualLrc(songId, it.toString())
             }
         }
     )
 
-    val lyrics = remember(currentMediaItem, manualLrcMap, allSongs) {
-        val manualUriStr = manualLrcMap[songId]
-        if (manualUriStr != null) {
-            try {
-                val inputStream: InputStream? = context.contentResolver.openInputStream(Uri.parse(manualUriStr))
-                val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
-                LrcParser.parse(content)
-            } catch (e: Exception) { emptyList() }
+    var onlineLyricsContent by remember(currentMediaItem) { mutableStateOf<String?>(null) }
+
+    val lyrics = remember(currentMediaItem, manualLrcMap, allSongs, onlineLyricsContent) {
+        if (onlineLyricsContent != null) {
+            LrcParser.parse(onlineLyricsContent!!)
         } else {
-            val currentSong = allSongs.find { it.id == songId }
-            val autoLrcContent = currentSong?.path?.let { path ->
+            val manualUriStr = manualLrcMap[songId]
+            val loadedLyrics = if (!manualUriStr.isNullOrEmpty()) {
                 try {
-                    val audioFile = File(path)
-                    val lrcFile = File(audioFile.parent, audioFile.nameWithoutExtension + ".lrc")
-                    if (lrcFile.exists()) lrcFile.readText() else null
-                } catch (e: Exception) { null }
+                    val inputStream: InputStream? = context.contentResolver.openInputStream(Uri.parse(manualUriStr))
+                    val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    LrcParser.parse(content)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    emptyList()
+                }
+            } else {
+                val currentSong = allSongs.find { it.id == songId }
+                val autoLrcContent = currentSong?.path?.let { path ->
+                    try {
+                        val audioFile = File(path)
+                        val lrcFile = File(audioFile.parent, audioFile.nameWithoutExtension + ".lrc")
+                        if (lrcFile.exists()) lrcFile.readText() else null
+                    } catch (e: Exception) { null }
+                }
+                if (!autoLrcContent.isNullOrEmpty()) {
+                    LrcParser.parse(autoLrcContent)
+                } else {
+                    null
+                }
             }
-            if (autoLrcContent != null) LrcParser.parse(autoLrcContent)
-            else LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file selected\n[00:10.00]Tap 'More' to select one")
+            loadedLyrics ?: LrcParser.parse("[00:00.00]Welcome to Snoufly\n[00:05.00]No .lrc file found\n[00:10.00]Tap 'More' to search online")
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Fondo Desenfoque (Blur) unificado
         SnouflyImage(
             model = albumArtUri,
             modifier = Modifier
@@ -170,6 +153,7 @@ fun NowPlayingScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -186,10 +170,33 @@ fun NowPlayingScreen(
                 )
                 Box {
                     var showMenu by remember { mutableStateOf(false) }
+                    var isSearching by remember { mutableStateOf(false) }
+
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
+                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color.White)
+                        else Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Search Lyrics Online") },
+                            leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                isSearching = true
+                                scope.launch {
+                                    val result = mainViewModel.fetchOnlineLyrics(title, artist, albumName, duration)
+                                    if (result.isNotEmpty()) {
+                                        val sb = StringBuilder()
+                                        result.forEach { sb.append("[${formatTimeLrc(it.timeStamp)}]${it.content}\n") }
+                                        onlineLyricsContent = sb.toString()
+                                        Toast.makeText(context, "Lyrics found!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "No lyrics found online", Toast.LENGTH_SHORT).show()
+                                    }
+                                    isSearching = false
+                                }
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Select .lrc File") },
                             leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
@@ -204,7 +211,7 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Carátula Central unificada
+            // Art
             SnouflyImage(
                 model = albumArtUri,
                 modifier = Modifier
@@ -217,6 +224,7 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
+            // Metadata & Controls
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -342,6 +350,7 @@ fun NowPlayingScreen(
             
             Spacer(modifier = Modifier.height(40.dp))
             
+            // Botón de letras siempre visible si no está vacío
             if (lyrics.isNotEmpty()) {
                 val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
                 var showLyrics by remember { mutableStateOf(false) }
@@ -383,4 +392,12 @@ private fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
+}
+
+private fun formatTimeLrc(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    val hundredths = (ms % 1000) / 10
+    return String.format("%02d:%02d.%02d", minutes, seconds, hundredths)
 }

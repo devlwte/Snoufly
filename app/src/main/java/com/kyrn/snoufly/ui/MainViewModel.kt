@@ -18,9 +18,17 @@ import com.kyrn.snoufly.data.MusicRepository
 import com.kyrn.snoufly.data.SettingsManager
 import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.data.ThemeMode
+import com.kyrn.snoufly.data.LrcParser
+import com.kyrn.snoufly.data.LyricLine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.TimeUnit
+import com.google.gson.JsonParser
+import com.google.gson.JsonArray
 
 enum class SortOrder {
     RECENTLY_ADDED, OLDEST_FIRST, ALPHABETICAL, ARTIST, ALBUM, DURATION
@@ -68,15 +76,21 @@ class MainViewModel(
     val lastBackupTime: StateFlow<Long> = settingsManager.lastBackupTimeFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    val lyricsApiTemplate: StateFlow<String> = settingsManager.lyricsApiTemplateFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    val lyricsUserAgent: StateFlow<String> = settingsManager.lyricsUserAgentFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     // SINGLE SOURCE OF TRUTH
     private val enrichedSongs: StateFlow<List<Song>> = combine(_rawSongs, customMetadataMap) { raw, customs ->
         raw.map { song ->
             val custom = customs[song.id]
             if (custom != null) {
                 song.copy(
-                    title = custom.title ?: song.title,
-                    artist = custom.artist ?: song.artist,
-                    album = custom.album ?: song.album,
+                    title = if (!custom.title.isNullOrBlank()) custom.title else song.title,
+                    artist = if (!custom.artist.isNullOrBlank()) custom.artist else song.artist,
+                    album = if (!custom.album.isNullOrBlank()) custom.album else song.album,
                     albumArtUri = custom.coverUri?.toUri() ?: song.albumArtUri
                 )
             } else song
@@ -111,7 +125,7 @@ class MainViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favorites: StateFlow<List<Song>> = combine(enrichedSongs, favoriteIds) { enriched, ids ->
-        enriched.filter { it.id in ids }
+        enriched.filter { it.id in ids }.toList()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val manualLrcMap: StateFlow<Map<Long, String>> = customMetadataMap
@@ -186,9 +200,14 @@ class MainViewModel(
         val currentCustom = customMetadataMap.value[songId] ?: CustomMetadata()
         settingsManager.updateCustomMetadata(songId, currentCustom.copy(lrcUri = lrcUri))
     }
-    fun updateSongMetadata(songId: Long, t: String, a: String, al: String, c: String?) = viewModelScope.launch {
+    fun updateSongMetadata(songId: Long, title: String, artist: String, album: String, coverUri: String?) = viewModelScope.launch {
         val currentCustom = customMetadataMap.value[songId] ?: CustomMetadata()
-        settingsManager.updateCustomMetadata(songId, currentCustom.copy(title = t, artist = a, album = al, coverUri = c ?: currentCustom.coverUri))
+        settingsManager.updateCustomMetadata(songId, currentCustom.copy(
+            title = title, 
+            artist = artist, 
+            album = album, 
+            coverUri = coverUri ?: currentCustom.coverUri
+        ))
     }
 
     fun exportBackup(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -256,4 +275,106 @@ class MainViewModel(
     fun updateEqBands(bands: List<Int>) = viewModelScope.launch { settingsManager.updateEqBands(bands) }
     fun updatePlaybackSpeed(speed: Float) = viewModelScope.launch { settingsManager.updatePlaybackSpeed(speed) }
     fun updatePlaybackPitch(pitch: Float) = viewModelScope.launch { settingsManager.updatePlaybackPitch(pitch) }
+
+    // --- LYRICS API LOGIC ---
+    fun updateLyricsSettings(template: String, userAgent: String) = viewModelScope.launch {
+        settingsManager.updateLyricsSettings(template, userAgent)
+    }
+
+    private fun cleanMetadata(text: String): String {
+        return text.replace(Regex("\\(.*?\\)"), "") 
+                   .replace(Regex("\\[.*?]"), "")   
+                   .replace(Regex("(?i)official video|official audio|video|lyrics|ft\\.|feat\\.|remastered|remix|\\d{4}"), "") 
+                   .trim()
+    }
+
+    suspend fun fetchOnlineLyrics(track: String, artist: String, album: String, duration: Long): List<LyricLine> = withContext(Dispatchers.IO) {
+        val cleanTrack = cleanMetadata(track)
+        val cleanArtist = cleanMetadata(artist)
+        
+        // --- NUEVA ESTRATEGIA: BÚSQUEDA POR TÍTULO Y ARTISTA (MÁS ROBUSTA) ---
+        // LRCLIB /api/search?q=artist+track
+        val searchQuery = Uri.encode("$cleanArtist $cleanTrack")
+        val searchUrl = "https://lrclib.net/api/search?q=$searchQuery"
+        
+        try {
+            val url = URL(searchUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", lyricsUserAgent.value)
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val results = JsonParser.parseString(response).asJsonArray
+                
+                if (results.size() > 0) {
+                    // Seleccionar el mejor resultado: buscamos el que tenga syncedLyrics, sino plainLyrics
+                    var bestMatch = results.get(0).asJsonObject
+                    for (element in results) {
+                        val obj = element.asJsonObject
+                        if (obj.has("syncedLyrics") && !obj.get("syncedLyrics").isJsonNull) {
+                            bestMatch = obj
+                            break
+                        }
+                    }
+                    
+                    val lrcContent = bestMatch.get("syncedLyrics")?.let { if (it.isJsonNull) null else it.asString }
+                        ?: bestMatch.get("plainLyrics")?.let { if (it.isJsonNull) null else it.asString }
+                        ?: ""
+                    
+                    return@withContext LrcParser.parse(lrcContent)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // --- FALLBACK: EL MÉTODO GET ORIGINAL SI LA BÚSQUEDA FALLA ---
+        val lyrics = performLyricsRequest(mapOf("TRACK" to cleanTrack, "ARTIST" to cleanArtist, "ALBUM" to "", "DURATION" to ""))
+        if (lyrics.isNotEmpty()) return@withContext lyrics
+        
+        emptyList()
+    }
+
+    private suspend fun performLyricsRequest(params: Map<String, String>): List<LyricLine> {
+        return try {
+            val template = settingsManager.lyricsApiTemplateFlow.first()
+            val userAgent = settingsManager.lyricsUserAgentFlow.first()
+            
+            var urlString = template
+            params.forEach { (key, value) ->
+                if (value.isEmpty() || value.lowercase() == "unknown") {
+                    urlString = urlString.replace(Regex("[&?]?[^&?]+?=%$key%"), "")
+                } else {
+                    urlString = urlString.replace("%$key%", Uri.encode(value))
+                }
+            }
+
+            urlString = urlString.replace("&&", "&").replace("?&", "?").trimEnd('&', '?')
+
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", userAgent)
+            connection.connectTimeout = 4000
+            connection.readTimeout = 4000
+
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val jsonObject = JsonParser.parseString(response).asJsonObject
+                
+                val lrcContent = jsonObject.get("syncedLyrics")?.let { if (it.isJsonNull) null else it.asString }
+                    ?: jsonObject.get("plainLyrics")?.let { if (it.isJsonNull) null else it.asString }
+                    ?: ""
+
+                LrcParser.parse(lrcContent)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
