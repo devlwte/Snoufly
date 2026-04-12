@@ -15,7 +15,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import androidx.media3.common.MediaItem
 
 @Composable
@@ -32,7 +31,6 @@ fun MiniPlayer(
     val title = metadata.title?.toString() ?: "Unknown"
     val artist = metadata.artist?.toString() ?: "Unknown Artist"
     val albumArtUri = metadata.artworkUri
-    var loadError by remember { mutableStateOf(false) }
 
     Surface(
         modifier = modifier
@@ -49,23 +47,13 @@ fun MiniPlayer(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            SnouflyImage(
+                model = albumArtUri,
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-            ) {
-                if (albumArtUri != null && !loadError) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        onError = { loadError = true }
-                    )
-                } else {
-                    AutoCover(name = title, modifier = Modifier.fillMaxSize())
-                }
-            }
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 

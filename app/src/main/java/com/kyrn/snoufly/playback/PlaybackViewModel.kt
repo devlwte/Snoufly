@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -15,9 +16,7 @@ import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.ui.MainViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -60,7 +59,7 @@ class PlaybackViewModel : ViewModel() {
     private fun setupPlayer() {
         val player = controller ?: return
         _isPlaying.value = player.isPlaying
-        _currentMediaItem.value = player.currentMediaItem
+        _currentMediaItem.value = enrichMediaItem(player.currentMediaItem)
         _duration.value = player.duration.coerceAtLeast(0L)
         _shuffleModeEnabled.value = player.shuffleModeEnabled
         _repeatMode.value = player.repeatMode
@@ -68,18 +67,12 @@ class PlaybackViewModel : ViewModel() {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
-                if (isPlaying) {
-                    startProgressUpdate()
-                } else {
-                    stopProgressUpdate()
-                }
+                if (isPlaying) startProgressUpdate() else stopProgressUpdate()
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                _currentMediaItem.value = mediaItem
+                _currentMediaItem.value = enrichMediaItem(mediaItem)
                 _duration.value = player.duration.coerceAtLeast(0L)
-                
-                // Registro inteligente de historial al cambiar de canción
                 mediaItem?.mediaId?.toLongOrNull()?.let { id ->
                     mainViewModel?.addToRecentlyPlayed(id)
                 }
@@ -91,26 +84,31 @@ class PlaybackViewModel : ViewModel() {
                 }
             }
 
-            override fun onPositionDiscontinuity(
-                oldPosition: Player.PositionInfo,
-                newPosition: Player.PositionInfo,
-                reason: Int
-            ) {
-                _currentPosition.value = newPosition.positionMs
+            override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
+                _currentPosition.value = new.positionMs
             }
 
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                _shuffleModeEnabled.value = shuffleModeEnabled
-            }
-
-            override fun onRepeatModeChanged(repeatMode: Int) {
-                _repeatMode.value = repeatMode
-            }
+            override fun onShuffleModeEnabledChanged(enabled: Boolean) { _shuffleModeEnabled.value = enabled }
+            override fun onRepeatModeChanged(mode: Int) { _repeatMode.value = mode }
         })
 
-        if (player.isPlaying) {
-            startProgressUpdate()
-        }
+        if (player.isPlaying) startProgressUpdate()
+    }
+
+    private fun enrichMediaItem(item: MediaItem?): MediaItem? {
+        if (item == null) return null
+        val id = item.mediaId.toLongOrNull()
+        val custom = mainViewModel?.customMetadataMap?.value?.get(id)
+        return if (custom != null) {
+            item.buildUpon()
+                .setMediaMetadata(
+                    item.mediaMetadata.buildUpon()
+                        .setTitle(custom.title ?: item.mediaMetadata.title)
+                        .setArtist(custom.artist ?: item.mediaMetadata.artist)
+                        .setAlbumTitle(custom.album ?: item.mediaMetadata.albumTitle)
+                        .build()
+                ).build()
+        } else item
     }
 
     private fun startProgressUpdate() {
@@ -119,9 +117,7 @@ class PlaybackViewModel : ViewModel() {
             while (isActive) {
                 controller?.let {
                     _currentPosition.value = it.currentPosition
-                    if (_duration.value <= 0L && it.duration > 0L) {
-                        _duration.value = it.duration
-                    }
+                    if (_duration.value <= 0L && it.duration > 0L) _duration.value = it.duration
                 }
                 delay(500)
             }
@@ -140,7 +136,7 @@ class PlaybackViewModel : ViewModel() {
                 .setMediaId(song.id.toString())
                 .setUri(song.uri)
                 .setMediaMetadata(
-                    androidx.media3.common.MediaMetadata.Builder()
+                    MediaMetadata.Builder()
                         .setTitle(song.title)
                         .setArtist(song.artist)
                         .setAlbumTitle(song.album)
@@ -154,37 +150,17 @@ class PlaybackViewModel : ViewModel() {
         player.play()
     }
 
-    fun setPlaybackSpeed(speed: Float) {
-        val player = controller ?: return
-        val currentPitch = player.playbackParameters.pitch
-        player.playbackParameters = PlaybackParameters(speed, currentPitch)
-    }
-
-    fun setPlaybackPitch(pitch: Float) {
-        val player = controller ?: return
-        val currentSpeed = player.playbackParameters.speed
-        player.playbackParameters = PlaybackParameters(currentSpeed, pitch)
-    }
-
-    fun togglePlayPause() {
-        val player = controller ?: return
-        if (player.isPlaying) player.pause() else player.play()
-    }
-
-    fun toggleShuffle() {
-        val player = controller ?: return
-        player.shuffleModeEnabled = !player.shuffleModeEnabled
-    }
-
+    fun togglePlayPause() { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
+    fun toggleShuffle() { controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }
     fun toggleRepeat() {
-        val player = controller ?: return
-        player.repeatMode = when (player.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+        controller?.let {
+            it.repeatMode = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
         }
     }
-
     fun seekToNext() = controller?.seekToNext()
     fun seekToPrevious() = controller?.seekToPrevious()
     fun seekTo(position: Long) = controller?.seekTo(position)
@@ -192,8 +168,6 @@ class PlaybackViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdate()
-        controllerFuture?.let {
-            MediaController.releaseFuture(it)
-        }
+        controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 }

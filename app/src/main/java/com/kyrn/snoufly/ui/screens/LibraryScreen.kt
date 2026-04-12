@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.sp
 import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.SortOrder
-import com.kyrn.snoufly.ui.components.EditSongDialog
 import com.kyrn.snoufly.ui.components.RecentlyPlayedCarousel
 import com.kyrn.snoufly.ui.components.SongItem
 import java.util.Locale
@@ -38,7 +37,8 @@ fun LibraryScreen(
     viewModel: MainViewModel,
     onSongClick: (Int) -> Unit,
     onSettingsClick: () -> Unit,
-    onSeeAllListenAgain: () -> Unit
+    onSeeAllListenAgain: () -> Unit,
+    onEditSong: (Song) -> Unit
 ) {
     val context = LocalContext.current
     val songs by viewModel.songs.collectAsState()
@@ -50,7 +50,6 @@ fun LibraryScreen(
     val favoriteIds by viewModel.favoriteIds.collectAsState()
 
     var isSearchActive by remember { mutableStateOf(false) }
-    var editingSong by remember { mutableStateOf<Song?>(null) }
     var selectingLrcForSongId by remember { mutableStateOf<Long?>(null) }
 
     val lrcPickerLauncher = rememberLauncherForActivityResult(
@@ -229,7 +228,7 @@ fun LibraryScreen(
                                 val index = songs.indexOf(song)
                                 onSongClick(index)
                             },
-                            onEditClick = { editingSong = song },
+                            onEditClick = { onEditSong(song) },
                             onSelectLrcClick = {
                                 selectingLrcForSongId = song.id
                                 lrcPickerLauncher.launch(arrayOf("*/*"))
@@ -239,16 +238,5 @@ fun LibraryScreen(
                 }
             }
         }
-    }
-
-    editingSong?.let { song ->
-        EditSongDialog(
-            song = song,
-            onDismiss = { editingSong = null },
-            onConfirm = { title, artist, album ->
-                viewModel.updateSongMetadata(song.id, title, artist, album, null)
-                editingSong = null
-            }
-        )
     }
 }

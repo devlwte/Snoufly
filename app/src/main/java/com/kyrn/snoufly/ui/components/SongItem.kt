@@ -37,7 +37,6 @@ fun SongItem(
     ) {
         SnouflyImage(
             model = song.albumArtUri,
-            title = song.title,
             modifier = Modifier
                 .size(56.dp)
                 .clip(RoundedCornerShape(8.dp)),

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -37,6 +38,7 @@ import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.MainViewModelFactory
 import com.kyrn.snoufly.ui.Screen
+import com.kyrn.snoufly.ui.components.EditSongDialog
 import com.kyrn.snoufly.ui.components.MiniPlayer
 import com.kyrn.snoufly.ui.components.SongItem
 import com.kyrn.snoufly.ui.navItems
@@ -62,6 +64,30 @@ class MainActivity : ComponentActivity() {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
 
+            var globalEditingSong by remember { mutableStateOf<com.kyrn.snoufly.data.Song?>(null) }
+
+            var lastNavTime by remember { mutableLongStateOf(0L) }
+            val canNavigate = {
+                val now = System.currentTimeMillis()
+                if (now - lastNavTime > 500) {
+                    lastNavTime = now
+                    true
+                } else false
+            }
+
+            BackHandler(enabled = currentDestination?.route != Screen.Library.route) {
+                if (canNavigate()) {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Screen.Library.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            }
+
             val themeMode by mainViewModel.themeMode.collectAsState()
             val darkTheme = when (themeMode) {
                 ThemeMode.LIGHT -> false
@@ -69,7 +95,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
 
-            // Gestión de permisos
+            // GESTIÓN DE PERMISOS RESTAURADA
             var hasPermission by remember {
                 mutableStateOf(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -84,16 +110,24 @@ class MainActivity : ComponentActivity() {
                 ActivityResultContracts.RequestPermission()
             ) { isGranted ->
                 hasPermission = isGranted
-                if (isGranted) mainViewModel.loadSongs()
+                if (isGranted) {
+                    mainViewModel.loadSongs()
+                    playbackViewModel.initController(context, mainViewModel)
+                } else {
+                    Toast.makeText(this, "Permission denied. Please grant storage access to scan music.", Toast.LENGTH_LONG).show()
+                }
             }
 
             LaunchedEffect(hasPermission) {
                 if (!hasPermission) {
-                    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+                    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        Manifest.permission.READ_MEDIA_AUDIO
+                    } else {
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    }
                     permissionLauncher.launch(permission)
                 } else {
                     mainViewModel.loadSongs()
-                    // Vinculamos el MainViewModel para el registro automático de historial y estadísticas
                     playbackViewModel.initController(context, mainViewModel)
                 }
             }
@@ -112,7 +146,7 @@ class MainActivity : ComponentActivity() {
                                         currentMediaItem = currentMediaItem,
                                         isPlaying = isPlaying,
                                         onPlayPause = { playbackViewModel.togglePlayPause() },
-                                        onClick = { navController.navigate(Screen.Player.route) }
+                                        onClick = { if (canNavigate()) navController.navigate(Screen.Player.route) }
                                     )
                                 }
                                 
@@ -124,15 +158,17 @@ class MainActivity : ComponentActivity() {
                                             label = { Text(screen.title) },
                                             selected = selected,
                                             onClick = {
-                                                if (screen.route == Screen.Library.route) {
-                                                    navController.popBackStack(navController.graph.findStartDestination().id, false)
-                                                } else {
-                                                    navController.navigate(screen.route) {
-                                                        popUpTo(navController.graph.findStartDestination().id) {
-                                                            saveState = true
+                                                if (canNavigate()) {
+                                                    if (screen.route == Screen.Library.route) {
+                                                        if (navController.currentDestination?.route != Screen.Library.route) {
+                                                            navController.popBackStack(navController.graph.findStartDestination().id, false)
                                                         }
-                                                        launchSingleTop = true
-                                                        restoreState = true
+                                                    } else {
+                                                        navController.navigate(screen.route) {
+                                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                            launchSingleTop = true
+                                                            restoreState = true
+                                                        }
                                                     }
                                                 }
                                             }
@@ -157,46 +193,44 @@ class MainActivity : ComponentActivity() {
                                         playbackViewModel.playSongs(songs, index)
                                         navController.navigate(Screen.Player.route)
                                     },
-                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                                    onSeeAllListenAgain = { navController.navigate("listen_again") }
+                                    onSettingsClick = { if (canNavigate()) navController.navigate(Screen.Settings.route) },
+                                    onSeeAllListenAgain = { if (canNavigate()) navController.navigate("listen_again") },
+                                    onEditSong = { song -> globalEditingSong = song }
                                 )
                             }
                             @OptIn(ExperimentalMaterial3Api::class)
                             composable("listen_again") {
+                                val listenAgain by mainViewModel.listenAgain.collectAsState()
+                                val favoriteIds by mainViewModel.favoriteIds.collectAsState()
+                                
                                 Scaffold(
                                     topBar = {
                                         TopAppBar(
                                             title = { Text("Listen Again", fontWeight = FontWeight.Bold) },
                                             navigationIcon = {
-                                                IconButton(onClick = { navController.popBackStack() }) {
+                                                IconButton(onClick = { if (canNavigate()) navController.popBackStack() }) {
                                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                                                 }
                                             }
                                         )
                                     }
-                                ) { padding ->
-                                    val listenAgain by mainViewModel.listenAgain.collectAsState()
-                                    val favoriteIds by mainViewModel.favoriteIds.collectAsState() // Recolectamos favoritos como estado
-                                    
+                                ) { p ->
                                     LazyColumn(
-                                        modifier = Modifier.fillMaxSize().padding(padding),
+                                        modifier = Modifier.fillMaxSize().padding(p),
                                         contentPadding = PaddingValues(bottom = 80.dp)
                                     ) {
                                         items(listenAgain) { song ->
                                             SongItem(
                                                 song = song,
-                                                isFavorite = favoriteIds.contains(song.id), // Verificación reactiva
+                                                isFavorite = favoriteIds.contains(song.id),
                                                 onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
                                                 onClick = {
-                                                    val songs = mainViewModel.songs.value
-                                                    val index = songs.indexOf(song)
-                                                    if (index != -1) {
-                                                        playbackViewModel.playSongs(songs, index)
-                                                        navController.navigate(Screen.Player.route)
-                                                    }
+                                                    val index = listenAgain.indexOf(song)
+                                                    playbackViewModel.playSongs(listenAgain, index)
+                                                    navController.navigate(Screen.Player.route)
                                                 },
-                                                onEditClick = {},
-                                                onSelectLrcClick = {}
+                                                onEditClick = { globalEditingSong = song },
+                                                onSelectLrcClick = { /* Manual LRC */ }
                                             )
                                         }
                                     }
@@ -207,40 +241,45 @@ class MainActivity : ComponentActivity() {
                                     viewModel = mainViewModel,
                                     onSongClick = { index ->
                                         val songs = mainViewModel.favorites.value
-                                        val globalSongs = mainViewModel.songs.value
-                                        val song = songs[index]
-                                        val globalIndex = globalSongs.indexOf(song)
-                                        if (globalIndex != -1) {
-                                            playbackViewModel.playSongs(globalSongs, globalIndex)
-                                        } else {
-                                            playbackViewModel.playSongs(songs, index)
-                                        }
+                                        playbackViewModel.playSongs(songs, index)
                                         navController.navigate(Screen.Player.route)
-                                    }
+                                    },
+                                    onEditSong = { song -> globalEditingSong = song }
                                 )
                             }
                             composable(Screen.Player.route) {
                                 NowPlayingScreen(
                                     viewModel = playbackViewModel,
                                     mainViewModel = mainViewModel,
-                                    onBackClick = { navController.popBackStack() }
+                                    onBackClick = { if (canNavigate()) navController.popBackStack() }
                                 )
                             }
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     viewModel = mainViewModel,
-                                    onEqualizerClick = { navController.navigate("equalizer") }
+                                    onEqualizerClick = { if (canNavigate()) navController.navigate("equalizer") }
                                 )
                             }
                             composable("equalizer") {
                                 EqualizerScreen(
                                     mainViewModel = mainViewModel,
                                     playbackViewModel = playbackViewModel,
-                                    onBackClick = { navController.popBackStack() }
+                                    onBackClick = { if (canNavigate()) navController.popBackStack() }
                                 )
                             }
                         }
                     }
+                }
+
+                globalEditingSong?.let { song ->
+                    EditSongDialog(
+                        song = song,
+                        onDismiss = { globalEditingSong = null },
+                        onConfirm = { title, artist, album ->
+                            mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
+                            globalEditingSong = null
+                        }
+                    )
                 }
             }
         }

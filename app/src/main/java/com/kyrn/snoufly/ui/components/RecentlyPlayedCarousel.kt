@@ -19,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.kyrn.snoufly.data.Song
 
 @Composable
@@ -73,8 +72,6 @@ fun RecentlyPlayedCarousel(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(songs, key = { it.id }) { song ->
-                var loadError by remember { mutableStateOf(false) }
-                
                 Column(
                     modifier = Modifier
                         .width(itemWidth)
@@ -85,17 +82,11 @@ fun RecentlyPlayedCarousel(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(16.dp))
                     ) {
-                        if (song.albumArtUri != null && !loadError) {
-                            AsyncImage(
-                                model = song.albumArtUri,
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                                onError = { loadError = true }
-                            )
-                        } else {
-                            AutoCover(name = song.title, modifier = Modifier.fillMaxSize())
-                        }
+                        SnouflyImage(
+                            model = song.albumArtUri,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(

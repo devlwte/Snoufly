@@ -1,7 +1,9 @@
 package com.kyrn.snoufly.playback
 
 import android.content.Intent
+import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
@@ -9,12 +11,8 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import com.kyrn.snoufly.data.MusicRepository
 import com.kyrn.snoufly.data.SettingsManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -22,6 +20,9 @@ import kotlinx.coroutines.launch
 class MusicService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var settingsManager: SettingsManager
 
@@ -41,90 +42,110 @@ class MusicService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player).build()
 
-        // Sistema inteligente de control de audio
+        // Inicialización inmediata si ya hay un ID de sesión
+        val initialSessionId = player.audioSessionId
+        if (initialSessionId != C.AUDIO_SESSION_ID_UNSET && initialSessionId != 0) {
+            relinkHifiEngine(initialSessionId)
+        }
+
+        // MONITOR HI-FI v5.1: Aplicación instantánea de parámetros
         serviceScope.launch {
             combine(
                 settingsManager.eqEnabledFlow,
                 settingsManager.playbackSpeedFlow,
                 settingsManager.playbackPitchFlow
-            ) { enabled, speed, pitch ->
-                Triple(enabled, speed, pitch)
-            }.collect { (enabled, speed, pitch) ->
-                if (enabled) {
-                    // Aplicar valores con protección de rango (Clamping) para evitar bugs de audio
-                    val safeSpeed = speed.coerceIn(0.5f, 2.0f)
-                    val safePitch = pitch.coerceIn(0.5f, 2.0f)
-                    player.playbackParameters = PlaybackParameters(safeSpeed, safePitch)
-                    equalizer?.enabled = true
-                } else {
-                    // Si el motor está desactivado, resetear a valores normales inmediatamente
-                    player.playbackParameters = PlaybackParameters(1.0f, 1.0f)
-                    equalizer?.enabled = false
-                }
+            ) { enabled, speed, pitch -> Triple(enabled, speed, pitch) }
+            .collect { (enabled, speed, pitch) ->
+                val playerInstance = mediaSession?.player ?: return@collect
+                try {
+                    if (enabled) {
+                        val safeSpeed = speed.coerceIn(0.1f, 2.0f)
+                        val safePitch = pitch.coerceIn(0.1f, 2.0f)
+                        playerInstance.playbackParameters = PlaybackParameters(safeSpeed, safePitch)
+                        applyHifiEffects(true)
+                    } else {
+                        playerInstance.playbackParameters = PlaybackParameters.DEFAULT
+                        applyHifiEffects(false)
+                    }
+                } catch (e: Exception) { }
             }
         }
 
-        // Observar bandas del ecualizador
+        // Sincronización de bandas en tiempo real
         serviceScope.launch {
             settingsManager.eqBandsFlow.collect { bands ->
-                applyBands(bands)
+                applyBandsProfessional(bands)
             }
         }
 
         player.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
-                    initEqualizer(audioSessionId)
+                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != 0) {
+                    relinkHifiEngine(audioSessionId)
                 }
             }
         })
     }
 
-    private fun initEqualizer(audioSessionId: Int) {
+    private fun relinkHifiEngine(audioSessionId: Int) {
         try {
             equalizer?.release()
-            equalizer = Equalizer(0, audioSessionId).apply {
-                serviceScope.launch {
-                    val enabled = settingsManager.eqEnabledFlow.first()
-                    this@apply.enabled = enabled
-                    val bands = settingsManager.eqBandsFlow.first()
-                    applyBands(bands)
-                }
+            bassBoost?.release()
+            loudnessEnhancer?.release()
+
+            // Usamos prioridad 0 para máxima compatibilidad
+            equalizer = Equalizer(0, audioSessionId)
+            bassBoost = BassBoost(0, audioSessionId)
+            loudnessEnhancer = LoudnessEnhancer(audioSessionId)
+
+            serviceScope.launch {
+                val enabled = settingsManager.eqEnabledFlow.first()
+                val bands = settingsManager.eqBandsFlow.first()
+                applyHifiEffects(enabled)
+                applyBandsProfessional(bands)
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) { }
     }
 
-    private fun applyBands(bands: List<Int>) {
+    private fun applyHifiEffects(enabled: Boolean) {
+        try {
+            equalizer?.enabled = enabled
+            bassBoost?.enabled = enabled
+            loudnessEnhancer?.enabled = enabled
+            if (enabled) {
+                // Graves y ganancia perceptiva
+                bassBoost?.setStrength(850.toShort()) 
+                loudnessEnhancer?.setTargetGain(600) // ~6dB de boost
+            }
+        } catch (e: Exception) {}
+    }
+
+    private fun applyBandsProfessional(bands: List<Int>) {
         val eq = equalizer ?: return
-        if (bands.isEmpty()) return
+        val safeBands = if (bands.isEmpty()) List(5) { 0 } else bands
         try {
             val numBands = eq.numberOfBands.toInt()
             for (i in 0 until numBands) {
-                if (i < bands.size) {
-                    eq.setBandLevel(i.toShort(), bands[i].toShort())
-                }
+                val level = if (i < safeBands.size) safeBands[i] else 0
+                val clampedLevel = level.coerceIn(-1500, 1500)
+                eq.setBandLevel(i.toShort(), clampedLevel.toShort())
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {}
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0)) {
-            stopSelf()
-        }
+        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0)) stopSelf()
     }
 
     override fun onDestroy() {
         serviceScope.cancel()
         equalizer?.release()
-        equalizer = null
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-        mediaSession = null
+        bassBoost?.release()
+        loudnessEnhancer?.release()
+        mediaSession?.run { player.release(); release() }
         super.onDestroy()
     }
 }

@@ -3,6 +3,7 @@ package com.kyrn.snoufly.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,7 +51,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,18 +62,18 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
-import coil.compose.AsyncImage
 import com.kyrn.snoufly.data.LrcParser
 import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.MainViewModel
-import com.kyrn.snoufly.ui.components.AutoCover
 import com.kyrn.snoufly.ui.components.LyricsView
+import com.kyrn.snoufly.ui.components.SnouflyImage
 import java.io.File
 import java.io.InputStream
 
@@ -94,16 +94,6 @@ fun NowPlayingScreen(
     val manualLrcMap by mainViewModel.manualLrcMap.collectAsState()
     val favoriteIds by mainViewModel.favoriteIds.collectAsState()
     val allSongs by mainViewModel.songs.collectAsState()
-
-    var showLyrics by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
-    var loadError by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // REINICIAR loadError cuando cambia la canción para permitir cargar la carátula real
-    LaunchedEffect(currentMediaItem) {
-        loadError = false
-    }
 
     if (currentMediaItem == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -152,19 +142,15 @@ fun NowPlayingScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Fondo Desenfoque (Blur) inteligente
-        if (albumArtUri != null && !loadError) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize().blur(50.dp),
-                contentScale = ContentScale.Crop,
-                alpha = 0.5f,
-                onError = { loadError = true }
-            )
-        } else {
-            AutoCover(name = title, modifier = Modifier.fillMaxSize().blur(50.dp))
-        }
+        // Fondo Desenfoque (Blur) unificado
+        SnouflyImage(
+            model = albumArtUri,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(50.dp)
+                .graphicsLayer(alpha = 0.5f),
+            contentScale = ContentScale.Crop
+        )
         
         Box(
             modifier = Modifier
@@ -199,6 +185,7 @@ fun NowPlayingScreen(
                     letterSpacing = 1.sp
                 )
                 Box {
+                    var showMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
                     }
@@ -217,26 +204,16 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Carátula Central con AutoCover fallback
-            Box(
+            // Carátula Central unificada
+            SnouflyImage(
+                model = albumArtUri,
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color.DarkGray.copy(alpha = 0.2f))
-            ) {
-                if (albumArtUri != null && !loadError) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        onError = { loadError = true }
-                    )
-                } else {
-                    AutoCover(name = title, modifier = Modifier.fillMaxSize())
-                }
-            }
+                    .background(Color.DarkGray.copy(alpha = 0.2f)),
+                contentScale = ContentScale.Crop
+            )
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -366,6 +343,9 @@ fun NowPlayingScreen(
             Spacer(modifier = Modifier.height(40.dp))
             
             if (lyrics.isNotEmpty()) {
+                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                var showLyrics by remember { mutableStateOf(false) }
+                
                 Button(
                     onClick = { showLyrics = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
@@ -377,23 +357,23 @@ fun NowPlayingScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("LYRICS", color = Color.White, fontWeight = FontWeight.Bold)
                 }
-            }
-        }
-    }
 
-    if (showLyrics) {
-        ModalBottomSheet(
-            onDismissRequest = { showLyrics = false },
-            sheetState = sheetState,
-            containerColor = Color.Black.copy(alpha = 0.95f),
-            scrimColor = Color.Black.copy(alpha = 0.7f)
-        ) {
-            LyricsView(
-                lyrics = lyrics,
-                currentPosition = currentPosition,
-                onLyricClick = { time -> viewModel.seekTo(time) },
-                modifier = Modifier.fillMaxHeight(0.9f).padding(bottom = 32.dp)
-            )
+                if (showLyrics) {
+                    ModalBottomSheet(
+                        onDismissRequest = { showLyrics = false },
+                        sheetState = sheetState,
+                        containerColor = Color.Black.copy(alpha = 0.95f),
+                        scrimColor = Color.Black.copy(alpha = 0.7f)
+                    ) {
+                        LyricsView(
+                            lyrics = lyrics,
+                            currentPosition = currentPosition,
+                            onLyricClick = { time -> viewModel.seekTo(time) },
+                            modifier = Modifier.fillMaxHeight(0.9f).padding(bottom = 32.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

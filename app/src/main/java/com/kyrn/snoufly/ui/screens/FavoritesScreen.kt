@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.components.SongItem
 
@@ -16,7 +17,8 @@ import com.kyrn.snoufly.ui.components.SongItem
 @Composable
 fun FavoritesScreen(
     viewModel: MainViewModel,
-    onSongClick: (Int) -> Unit
+    onSongClick: (Int) -> Unit,
+    onEditSong: (Song) -> Unit
 ) {
     val favorites by viewModel.favorites.collectAsState()
 
@@ -56,8 +58,8 @@ fun FavoritesScreen(
                             val index = favorites.indexOf(song)
                             onSongClick(index)
                         },
-                        onEditClick = { /* Optional: implement edit in favorites */ },
-                        onSelectLrcClick = { /* Optional: implement lrc in favorites */ }
+                        onEditClick = { onEditSong(song) }, // Habilitado globalmente
+                        onSelectLrcClick = { /* Manual LRC implementation */ }
                     )
                 }
             }
