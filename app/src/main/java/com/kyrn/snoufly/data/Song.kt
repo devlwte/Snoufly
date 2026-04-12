@@ -1,7 +1,9 @@
 package com.kyrn.snoufly.data
 
 import android.net.Uri
+import androidx.annotation.Keep
 
+@Keep
 data class Song(
     val id: Long,
     val title: String,

@@ -15,8 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.kyrn.snoufly.R
 import com.kyrn.snoufly.data.BackupInterval
 import com.kyrn.snoufly.data.ThemeMode
 import com.kyrn.snoufly.ui.MainViewModel
@@ -40,12 +42,17 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showBackupIntervalDialog by remember { mutableStateOf(false) }
 
+    val backupExportedMsg = stringResource(R.string.backup_exported)
+    val exportFailedMsg = stringResource(R.string.export_failed)
+    val dataRestoredMsg = stringResource(R.string.data_restored)
+    val restoreFailedMsg = stringResource(R.string.restore_failed)
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
             uri?.let {
                 viewModel.exportBackup(it) { success ->
-                    Toast.makeText(context, if (success) "Backup exported" else "Export failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (success) backupExportedMsg else exportFailedMsg, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -56,7 +63,7 @@ fun SettingsScreen(
         onResult = { uri ->
             uri?.let {
                 viewModel.importBackup(it) { success ->
-                    Toast.makeText(context, if (success) "Data restored" else "Restore failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (success) dataRestoredMsg else restoreFailedMsg, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -74,7 +81,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Settings") })
+            TopAppBar(title = { Text(stringResource(R.string.settings_title)) })
         }
     ) { padding ->
         Column(
@@ -83,11 +90,11 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsCategory(title = "Library")
+            SettingsCategory(title = stringResource(R.string.category_library))
             SettingsItem(
                 icon = Icons.Default.Refresh,
-                title = "Rescan Library",
-                subtitle = "Look for new music files",
+                title = stringResource(R.string.rescan_library),
+                subtitle = stringResource(R.string.rescan_library_subtitle),
                 onClick = { viewModel.loadSongs() }
             )
             
@@ -95,7 +102,7 @@ fun SettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "Minimum Duration", style = MaterialTheme.typography.bodyLarge)
+                    Text(text = stringResource(R.string.minimum_duration), style = MaterialTheme.typography.bodyLarge)
                 }
                 Slider(
                     value = minDuration.toFloat(),
@@ -104,24 +111,24 @@ fun SettingsScreen(
                     steps = 11
                 )
                 Text(
-                    text = "Hide tracks shorter than ${minDuration / 1000}s",
+                    text = stringResource(R.string.hide_tracks_shorter_than, minDuration / 1000),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 40.dp)
                 )
             }
 
-            SettingsCategory(title = "Data & Backup")
+            SettingsCategory(title = stringResource(R.string.category_data_backup))
             SettingsItem(
                 icon = Icons.Default.CloudUpload,
-                title = "Manual Export",
-                subtitle = "Save all metadata, favorites, and history to a file",
+                title = stringResource(R.string.manual_export),
+                subtitle = stringResource(R.string.manual_export_subtitle),
                 onClick = { exportLauncher.launch("snoufly_backup_${System.currentTimeMillis()}.json") }
             )
             SettingsItem(
                 icon = Icons.Default.CloudDownload,
-                title = "Manual Import",
-                subtitle = "Restore data from a backup file",
+                title = stringResource(R.string.manual_import),
+                subtitle = stringResource(R.string.manual_import_subtitle),
                 onClick = { importLauncher.launch(arrayOf("application/json")) }
             )
             
@@ -129,14 +136,14 @@ fun SettingsScreen(
             
             SettingsItem(
                 icon = Icons.Default.Folder,
-                title = "Auto Backup Location",
-                subtitle = backupUri?.toUri()?.path ?: "Not set (Select folder)",
+                title = stringResource(R.string.auto_backup_location),
+                subtitle = backupUri?.toUri()?.path ?: stringResource(R.string.not_set_select_folder),
                 onClick = { folderLauncher.launch(null) }
             )
             
             SettingsItem(
                 icon = Icons.Default.Schedule,
-                title = "Backup Frequency",
+                title = stringResource(R.string.backup_frequency),
                 subtitle = backupInterval.name.lowercase().replaceFirstChar { it.uppercase() },
                 onClick = { showBackupIntervalDialog = true }
             )
@@ -144,38 +151,38 @@ fun SettingsScreen(
             if (lastBackupTime > 0) {
                 val dateStr = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(lastBackupTime))
                 Text(
-                    text = "Last backup: $dateStr",
+                    text = stringResource(R.string.last_backup, dateStr),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
                 )
             }
 
-            SettingsCategory(title = "Appearance")
+            SettingsCategory(title = stringResource(R.string.category_appearance))
             SettingsItem(
                 icon = Icons.Default.Palette,
-                title = "Theme",
+                title = stringResource(R.string.theme),
                 subtitle = when(themeMode) {
-                    ThemeMode.SYSTEM -> "System Default"
-                    ThemeMode.LIGHT -> "Light"
-                    ThemeMode.DARK -> "Dark"
+                    ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                    ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                    ThemeMode.DARK -> stringResource(R.string.theme_dark)
                 },
                 onClick = { showThemeDialog = true }
             )
 
-            SettingsCategory(title = "Audio")
+            SettingsCategory(title = stringResource(R.string.category_audio))
             SettingsItem(
                 icon = Icons.Default.Equalizer,
-                title = "Equalizer",
-                subtitle = "In-app professional audio engine",
+                title = stringResource(R.string.equalizer),
+                subtitle = stringResource(R.string.equalizer_subtitle),
                 onClick = onEqualizerClick
             )
 
-            SettingsCategory(title = "About")
+            SettingsCategory(title = stringResource(R.string.category_about))
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Version",
-                subtitle = "1.0.0 (Stable)",
+                title = stringResource(R.string.version),
+                subtitle = stringResource(R.string.version_subtitle),
                 onClick = {}
             )
         }
@@ -184,18 +191,18 @@ fun SettingsScreen(
     if (showThemeDialog) {
         AlertDialog(
             onDismissRequest = { showThemeDialog = false },
-            title = { Text("Choose Theme") },
+            title = { Text(stringResource(R.string.choose_theme)) },
             text = {
                 Column {
-                    ThemeOption("System Default", themeMode == ThemeMode.SYSTEM) {
+                    ThemeOption(stringResource(R.string.theme_system), themeMode == ThemeMode.SYSTEM) {
                         viewModel.updateThemeMode(ThemeMode.SYSTEM)
                         showThemeDialog = false
                     }
-                    ThemeOption("Light", themeMode == ThemeMode.LIGHT) {
+                    ThemeOption(stringResource(R.string.theme_light), themeMode == ThemeMode.LIGHT) {
                         viewModel.updateThemeMode(ThemeMode.LIGHT)
                         showThemeDialog = false
                     }
-                    ThemeOption("Dark", themeMode == ThemeMode.DARK) {
+                    ThemeOption(stringResource(R.string.theme_dark), themeMode == ThemeMode.DARK) {
                         viewModel.updateThemeMode(ThemeMode.DARK)
                         showThemeDialog = false
                     }
@@ -203,7 +210,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showThemeDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -212,7 +219,7 @@ fun SettingsScreen(
     if (showBackupIntervalDialog) {
         AlertDialog(
             onDismissRequest = { showBackupIntervalDialog = false },
-            title = { Text("Backup Frequency") },
+            title = { Text(stringResource(R.string.backup_frequency)) },
             text = {
                 Column {
                     BackupInterval.entries.forEach { interval ->
@@ -240,7 +247,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showBackupIntervalDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
