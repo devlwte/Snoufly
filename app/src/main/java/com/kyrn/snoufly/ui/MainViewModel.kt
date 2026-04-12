@@ -1,5 +1,6 @@
 package com.kyrn.snoufly.ui
 
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kyrn.snoufly.data.CustomMetadata
@@ -54,7 +55,7 @@ class MainViewModel(
                     title = custom.title ?: song.title,
                     artist = custom.artist ?: song.artist,
                     album = custom.album ?: song.album,
-                    albumArtUri = custom.coverUri?.let { android.net.Uri.parse(it) } ?: song.albumArtUri
+                    albumArtUri = custom.coverUri?.toUri() ?: song.albumArtUri
                 )
             } else song
         }
@@ -140,7 +141,7 @@ class MainViewModel(
     fun loadSongs() {
         viewModelScope.launch {
             _isLoading.value = true
-            try { _rawSongs.value = repository.getAllSongs() } catch (e: Exception) { } finally { _isLoading.value = false }
+            try { _rawSongs.value = repository.getAllSongs() } catch (_: Exception) { } finally { _isLoading.value = false }
         }
     }
 
@@ -155,7 +156,6 @@ class MainViewModel(
     }
 
     fun toggleFavorite(songId: Long) = viewModelScope.launch { settingsManager.toggleFavorite(songId) }
-    fun isFavorite(songId: Long): Boolean = favoriteIds.value.contains(songId)
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
     fun updateThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsManager.updateThemeMode(mode) }
     fun updateSortOrder(order: SortOrder) = viewModelScope.launch { settingsManager.updateSortOrder(order) }
