@@ -105,25 +105,33 @@ class MainViewModel(
     val audioCategories = mapOf(
         "Standard" to listOf("Normal", "Balanced", "Loudness"),
         "Music Genre" to listOf("Rock", "Pop", "Jazz", "Classical", "Electronic"),
-        "Vocal & Arts" to listOf("Anime", "Clear Voice", "Podcast"),
-        "Pro Effects" to listOf("Bass Max", "Treble Boost", "Cinematic")
+        "Vocal & Arts" to listOf("Clear Voice", "Podcast"),
+        "Pro Effects" to listOf("Bass Max", "Treble Boost", "Cinematic"),
+        "Character FX" to listOf("Anime", "Droid", "Deep Bot", "Chipmunk")
     )
 
+    data class AudioConfig(val bands: List<Int>, val speed: Float = 1.0f, val pitch: Float = 1.0f)
+
     val audioPresets = mapOf(
-        "Normal" to listOf(0, 0, 0, 0, 0),
-        "Balanced" to listOf(200, 100, 0, 100, 200),
-        "Loudness" to listOf(400, 0, -200, 0, 400),
-        "Rock" to listOf(600, 400, -200, 300, 600),
-        "Pop" to listOf(-200, 300, 600, 200, -300),
-        "Jazz" to listOf(500, 200, -100, 400, 200),
-        "Classical" to listOf(400, 300, 0, 300, 500),
-        "Electronic" to listOf(700, 300, 0, 400, 700),
-        "Anime" to listOf(300, 100, -100, 800, 1200), // High clarity for J-Pop style vocals
-        "Clear Voice" to listOf(-400, -200, 800, 400, -200),
-        "Podcast" to listOf(-500, 0, 1000, 200, -500),
-        "Bass Max" to listOf(1200, 800, 0, 0, 0),
-        "Treble Boost" to listOf(0, 0, 0, 600, 1200),
-        "Cinematic" to listOf(600, 200, -200, 200, 800)
+        "Normal" to AudioConfig(listOf(0, 0, 0, 0, 0)),
+        "Balanced" to AudioConfig(listOf(200, 100, 0, 100, 200)),
+        "Loudness" to AudioConfig(listOf(400, 0, -200, 0, 400)),
+        "Rock" to AudioConfig(listOf(600, 400, -200, 300, 600)),
+        "Pop" to AudioConfig(listOf(-200, 300, 600, 200, -300)),
+        "Jazz" to AudioConfig(listOf(500, 200, -100, 400, 200)),
+        "Classical" to AudioConfig(listOf(400, 300, 0, 300, 500)),
+        "Electronic" to AudioConfig(listOf(700, 300, 0, 400, 700)),
+        "Clear Voice" to AudioConfig(listOf(-400, -200, 800, 400, -200)),
+        "Podcast" to AudioConfig(listOf(-500, 0, 1000, 200, -500)),
+        "Bass Max" to AudioConfig(listOf(1200, 800, 0, 0, 0)),
+        "Treble Boost" to AudioConfig(listOf(0, 0, 0, 600, 1200)),
+        "Cinematic" to AudioConfig(listOf(600, 200, -200, 200, 800)),
+        
+        // Character FX Presets
+        "Anime" to AudioConfig(listOf(300, 100, -100, 900, 1500), speed = 1.05f, pitch = 1.25f), 
+        "Droid" to AudioConfig(listOf(200, -300, 1000, -300, 800), speed = 0.95f, pitch = 0.85f),
+        "Deep Bot" to AudioConfig(listOf(800, 400, -500, -500, -800), speed = 0.90f, pitch = 0.70f),
+        "Chipmunk" to AudioConfig(listOf(-500, -200, 0, 500, 1200), speed = 1.15f, pitch = 1.50f)
     )
 
     private val _isLoading = MutableStateFlow(false)
@@ -159,6 +167,16 @@ class MainViewModel(
     fun updateSongMetadata(songId: Long, t: String, a: String, al: String, c: String?) = viewModelScope.launch {
         val currentCustom = customMetadataMap.value[songId] ?: CustomMetadata()
         settingsManager.updateCustomMetadata(songId, currentCustom.copy(title = t, artist = a, album = al, coverUri = c ?: currentCustom.coverUri))
+    }
+
+    fun applyPreset(presetName: String) {
+        val config = audioPresets[presetName] ?: return
+        viewModelScope.launch {
+            settingsManager.updateEqEnabled(true)
+            settingsManager.updateEqBands(config.bands)
+            settingsManager.updatePlaybackSpeed(config.speed)
+            settingsManager.updatePlaybackPitch(config.pitch)
+        }
     }
 
     fun updateEqEnabled(enabled: Boolean) = viewModelScope.launch { settingsManager.updateEqEnabled(enabled) }
