@@ -31,6 +31,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.kyrn.snoufly.data.BackupManager
 import com.kyrn.snoufly.data.MusicRepository
 import com.kyrn.snoufly.data.SettingsManager
 import com.kyrn.snoufly.data.ThemeMode
@@ -52,11 +53,12 @@ class MainActivity : ComponentActivity() {
         
         val repository = MusicRepository(applicationContext)
         val settingsManager = SettingsManager(applicationContext)
+        val backupManager = BackupManager(applicationContext, settingsManager)
         
         setContent {
             val context = LocalContext.current
             val mainViewModel: MainViewModel = viewModel(
-                factory = MainViewModelFactory(repository, settingsManager)
+                factory = MainViewModelFactory(application, repository, settingsManager, backupManager)
             )
             val playbackViewModel: PlaybackViewModel = viewModel()
             
