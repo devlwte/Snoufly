@@ -68,13 +68,10 @@ fun EqualizerScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Master Engine Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(
                     modifier = Modifier.padding(24.dp),
@@ -86,14 +83,10 @@ fun EqualizerScreen(
                         Text("Engine Snoufly v5.2", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Character FX Engine Active", style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
-                        checked = eqEnabled,
-                        onCheckedChange = { mainViewModel.updateEqEnabled(it) }
-                    )
+                    Switch(checked = eqEnabled, onCheckedChange = { mainViewModel.updateEqEnabled(it) })
                 }
             }
 
-            // Category Navigation
             Text("Presets & Vocal Styles", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             SecondaryScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
@@ -111,7 +104,6 @@ fun EqualizerScreen(
                 }
             }
 
-            // Style Grid for Selected Category
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -144,7 +136,6 @@ fun EqualizerScreen(
                 }
             }
 
-            // Sonic Engine (Pitch & Speed)
             Text("Sonic Engine (RealTime FX)", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             AudioControlSlider(
                 label = "Speed",
@@ -161,13 +152,9 @@ fun EqualizerScreen(
                 formattedValue = String.format("%.2fx", playbackPitch)
             )
 
-            // High-Precision Bands
             Text("Studio Frequency Bands", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().height(220.dp).padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val labels = listOf("BASS", "LOW", "MID", "HIGH", "AIR")
@@ -184,62 +171,28 @@ fun EqualizerScreen(
                     )
                 }
             }
-            
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-fun AudioControlSlider(
-    label: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit,
-    formattedValue: String
-) {
+fun AudioControlSlider(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, onValueChange: (Float) -> Unit, formattedValue: String) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             Text(formattedValue, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
         }
-        Slider(
-            value = value, 
-            onValueChange = onValueChange, 
-            valueRange = valueRange,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary
-            )
-        )
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary))
     }
 }
 
 @Composable
-fun RowScope.BandSlider(
-    label: String,
-    level: Int,
-    enabled: Boolean,
-    onLevelChange: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier.weight(1f),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "${if (level > 0) "+" else ""}${level / 100}dB",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        )
+fun RowScope.BandSlider(label: String, level: Int, enabled: Boolean, onLevelChange: (Int) -> Unit) {
+    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = "${if (level > 0) "+" else ""}${level / 100}dB", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         Spacer(modifier = Modifier.height(8.dp))
-        Slider(
-            value = level.toFloat(),
-            onValueChange = { if (enabled) onLevelChange(it.toInt()) },
-            valueRange = -1500f..1500f,
-            modifier = Modifier.weight(1f).graphicsLayer(rotationZ = 270f),
-            enabled = enabled
-        )
+        Slider(value = level.toFloat(), onValueChange = { if (enabled) onLevelChange(it.toInt()) }, valueRange = -1500f..1500f, modifier = Modifier.weight(1f).graphicsLayer(rotationZ = 270f), enabled = enabled)
         Spacer(modifier = Modifier.height(8.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
     }

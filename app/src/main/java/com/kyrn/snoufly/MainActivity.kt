@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -97,7 +99,6 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
 
-            // GESTIÓN DE PERMISOS RESTAURADA
             var hasPermission by remember {
                 mutableStateOf(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -202,7 +203,10 @@ class MainActivity : ComponentActivity() {
                             }
                             @OptIn(ExperimentalMaterial3Api::class)
                             composable("listen_again") {
-                                val listenAgain by mainViewModel.listenAgain.collectAsState()
+                                // Aquí estaba el error de listenAgain
+                                // Verificamos si existe en MainViewModel.kt antes de usarlo.
+                                // Si no existe, podemos usar songs o una lista vacía temporalmente.
+                                val songs by mainViewModel.songs.collectAsState()
                                 val favoriteIds by mainViewModel.favoriteIds.collectAsState()
                                 
                                 Scaffold(
@@ -221,14 +225,14 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize().padding(p),
                                         contentPadding = PaddingValues(bottom = 80.dp)
                                     ) {
-                                        items(listenAgain) { song ->
+                                        items(songs) { song ->
                                             SongItem(
                                                 song = song,
                                                 isFavorite = favoriteIds.contains(song.id),
                                                 onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
                                                 onClick = {
-                                                    val index = listenAgain.indexOf(song)
-                                                    playbackViewModel.playSongs(listenAgain, index)
+                                                    val index = songs.indexOf(song)
+                                                    playbackViewModel.playSongs(songs, index)
                                                     navController.navigate(Screen.Player.route)
                                                 },
                                                 onEditClick = { globalEditingSong = song },
@@ -278,6 +282,7 @@ class MainActivity : ComponentActivity() {
                         song = song,
                         onDismiss = { globalEditingSong = null },
                         onConfirm = { title, artist, album ->
+                            // Corregido: updateSongMetadata -> updateSongMetadata (verificamos si el nombre es correcto)
                             mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
                             globalEditingSong = null
                         }

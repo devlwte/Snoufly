@@ -45,7 +45,7 @@ class SettingsManager(private val context: Context) {
         val LYRICS_USER_AGENT = stringPreferencesKey("lyrics_user_agent")
     }
 
-    private val DEFAULT_LYRICS_API = "https://lrclib.net/api/get?track_name=%TRACK%&artist_name=%ARTIST%&album_name=%ALBUM%&duration=%DURATION%"
+    private val DEFAULT_LYRICS_API = "https://lrclib.net/api/search?q=%ARTIST% %TRACK%"
     private val DEFAULT_USER_AGENT = "Snoufly/1.0.0 (https://github.com/devlwte/Snoufly)"
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
