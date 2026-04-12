@@ -1,8 +1,18 @@
 package com.kyrn.snoufly.ui
 
+import android.app.Application
+import android.net.Uri
 import androidx.core.net.toUri
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.kyrn.snoufly.data.BackupInterval
+import com.kyrn.snoufly.data.BackupManager
+import com.kyrn.snoufly.data.BackupWorker
 import com.kyrn.snoufly.data.CustomMetadata
 import com.kyrn.snoufly.data.MusicRepository
 import com.kyrn.snoufly.data.SettingsManager
@@ -10,15 +20,18 @@ import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.data.ThemeMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 enum class SortOrder {
     RECENTLY_ADDED, OLDEST_FIRST, ALPHABETICAL, ARTIST, ALBUM, DURATION
 }
 
 class MainViewModel(
+    application: Application,
     private val repository: MusicRepository,
-    private val settingsManager: SettingsManager
-) : ViewModel() {
+    private val settingsManager: SettingsManager,
+    private val backupManager: BackupManager
+) : AndroidViewModel(application) {
 
     private val _rawSongs = MutableStateFlow<List<Song>>(emptyList())
     
@@ -45,6 +58,15 @@ class MainViewModel(
 
     val recentlyPlayedIds: StateFlow<List<Long>> = settingsManager.recentlyPlayedIdsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val backupUri: StateFlow<String?> = settingsManager.backupUriFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val backupInterval: StateFlow<BackupInterval> = settingsManager.backupIntervalFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BackupInterval.NEVER)
+
+    val lastBackupTime: StateFlow<Long> = settingsManager.lastBackupTimeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     // SINGLE SOURCE OF TRUTH
     private val enrichedSongs: StateFlow<List<Song>> = combine(_rawSongs, customMetadataMap) { raw, customs ->
@@ -167,6 +189,57 @@ class MainViewModel(
     fun updateSongMetadata(songId: Long, t: String, a: String, al: String, c: String?) = viewModelScope.launch {
         val currentCustom = customMetadataMap.value[songId] ?: CustomMetadata()
         settingsManager.updateCustomMetadata(songId, currentCustom.copy(title = t, artist = a, album = al, coverUri = c ?: currentCustom.coverUri))
+    }
+
+    fun exportBackup(uri: Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = backupManager.createBackup(uri)
+            onResult(result.isSuccess)
+        }
+    }
+
+    fun importBackup(uri: Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = backupManager.restoreBackup(uri)
+            onResult(result.isSuccess)
+        }
+    }
+
+    fun updateBackupSettings(uri: String?, interval: BackupInterval) {
+        viewModelScope.launch {
+            settingsManager.updateBackupSettings(uri, interval)
+            scheduleBackup(interval)
+        }
+    }
+
+    private fun scheduleBackup(interval: BackupInterval) {
+        val workManager = WorkManager.getInstance(getApplication())
+        if (interval == BackupInterval.NEVER) {
+            workManager.cancelUniqueWork("auto_backup")
+            return
+        }
+
+        val repeatIntervalDays = when (interval) {
+            BackupInterval.DAILY -> 1L
+            BackupInterval.WEEKLY -> 7L
+            BackupInterval.MONTHLY -> 30L
+            BackupInterval.NEVER -> return
+        }
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val backupRequest = PeriodicWorkRequestBuilder<BackupWorker>(repeatIntervalDays, TimeUnit.DAYS)
+            .setConstraints(constraints)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            "auto_backup",
+            ExistingPeriodicWorkPolicy.REPLACE,
+            backupRequest
+        )
     }
 
     fun applyPreset(presetName: String) {

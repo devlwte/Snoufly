@@ -16,6 +16,10 @@ enum class ThemeMode {
     SYSTEM, LIGHT, DARK
 }
 
+enum class BackupInterval {
+    DAILY, WEEKLY, MONTHLY, NEVER
+}
+
 class SettingsManager(private val context: Context) {
 
     private object PreferencesKeys {
@@ -30,6 +34,11 @@ class SettingsManager(private val context: Context) {
         val EQ_BANDS = stringPreferencesKey("eq_bands") 
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val PLAYBACK_PITCH = floatPreferencesKey("playback_pitch")
+        
+        // Backup settings
+        val BACKUP_URI = stringPreferencesKey("backup_uri")
+        val BACKUP_INTERVAL = stringPreferencesKey("backup_interval")
+        val LAST_BACKUP_TIME = longPreferencesKey("last_backup_time")
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
@@ -103,6 +112,13 @@ class SettingsManager(private val context: Context) {
 
     val playbackPitchFlow: Flow<Float> = context.dataStore.data.map { it[PreferencesKeys.PLAYBACK_PITCH] ?: 1.0f }
 
+    val backupUriFlow: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.BACKUP_URI] }
+    val backupIntervalFlow: Flow<BackupInterval> = context.dataStore.data.map {
+        val name = it[PreferencesKeys.BACKUP_INTERVAL] ?: BackupInterval.NEVER.name
+        try { BackupInterval.valueOf(name) } catch (e: Exception) { BackupInterval.NEVER }
+    }
+    val lastBackupTimeFlow: Flow<Long> = context.dataStore.data.map { it[PreferencesKeys.LAST_BACKUP_TIME] ?: 0L }
+
     suspend fun updateThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences -> preferences[PreferencesKeys.THEME_MODE] = mode.name }
     }
@@ -175,5 +191,36 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updatePlaybackPitch(pitch: Float) {
         context.dataStore.edit { it[PreferencesKeys.PLAYBACK_PITCH] = pitch }
+    }
+
+    suspend fun updateBackupSettings(uri: String?, interval: BackupInterval) {
+        context.dataStore.edit {
+            it[PreferencesKeys.BACKUP_URI] = uri ?: ""
+            it[PreferencesKeys.BACKUP_INTERVAL] = interval.name
+        }
+    }
+
+    suspend fun updateLastBackupTime(time: Long) {
+        context.dataStore.edit { it[PreferencesKeys.LAST_BACKUP_TIME] = time }
+    }
+
+    suspend fun restoreAllData(
+        favorites: Set<Long>,
+        recent: List<Long>,
+        counts: Map<Long, Int>,
+        metadata: Map<Long, CustomMetadata>,
+        theme: String?,
+        sort: String?,
+        minDur: Long?
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.FAVORITE_IDS] = favorites.map { it.toString() }.toSet()
+            prefs[PreferencesKeys.RECENTLY_PLAYED_IDS] = recent.joinToString(",")
+            prefs[PreferencesKeys.PLAY_COUNTS] = counts.map { "${it.key}:${it.value}" }.joinToString(",")
+            prefs[PreferencesKeys.CUSTOM_METADATA_MAP] = metadata.map { "${it.key}::${it.value.serialize()}" }.joinToString("||")
+            theme?.let { prefs[PreferencesKeys.THEME_MODE] = it }
+            sort?.let { prefs[PreferencesKeys.SORT_ORDER] = it }
+            minDur?.let { prefs[PreferencesKeys.MIN_DURATION] = it }
+        }
     }
 }

@@ -1,5 +1,9 @@
 package com.kyrn.snoufly.ui.screens
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,13 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.kyrn.snoufly.data.BackupManager
-import com.kyrn.snoufly.data.SettingsManager
+import androidx.core.net.toUri
+import com.kyrn.snoufly.data.BackupInterval
 import com.kyrn.snoufly.data.ThemeMode
 import com.kyrn.snoufly.ui.MainViewModel
-import kotlinx.coroutines.launch
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,40 +31,43 @@ fun SettingsScreen(
     onEqualizerClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val minDuration by viewModel.minDuration.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val backupUri by viewModel.backupUri.collectAsState()
+    val backupInterval by viewModel.backupInterval.collectAsState()
+    val lastBackupTime by viewModel.lastBackupTime.collectAsState()
     
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showBackupIntervalDialog by remember { mutableStateOf(false) }
 
-    // Backup Management
-    val settingsManager = remember { SettingsManager(context) }
-    val backupManager = remember { BackupManager(context, settingsManager) }
-
-    val createBackupLauncher = rememberLauncherForActivityResult(
+    val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
             uri?.let {
-                scope.launch {
-                    val json = backupManager.createBackup()
-                    context.contentResolver.openOutputStream(it)?.use { stream ->
-                        stream.write(json.toByteArray())
-                    }
+                viewModel.exportBackup(it) { success ->
+                    Toast.makeText(context, if (success) "Backup exported" else "Export failed", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     )
 
-    val restoreBackupLauncher = rememberLauncherForActivityResult(
+    val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             uri?.let {
-                scope.launch {
-                    val json = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() } ?: ""
-                    if (backupManager.restoreBackup(json)) {
-                        // Success toast or refresh
-                    }
+                viewModel.importBackup(it) { success ->
+                    Toast.makeText(context, if (success) "Data restored" else "Restore failed", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+    )
+
+    val folderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+        onResult = { uri ->
+            uri?.let {
+                context.contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                viewModel.updateBackupSettings(it.toString(), backupInterval)
             }
         }
     )
@@ -93,7 +100,7 @@ fun SettingsScreen(
                 Slider(
                     value = minDuration.toFloat(),
                     onValueChange = { viewModel.updateMinDuration(it.toLong()) },
-                    valueRange = 0f..60000f, // 0 to 60 seconds
+                    valueRange = 0f..60000f,
                     steps = 11
                 )
                 Text(
@@ -106,17 +113,43 @@ fun SettingsScreen(
 
             SettingsCategory(title = "Data & Backup")
             SettingsItem(
-                icon = Icons.Default.FileUpload,
-                title = "Export Settings",
-                subtitle = "Save all your song edits and favorites to a .json file",
-                onClick = { createBackupLauncher.launch("snoufly_backup_${System.currentTimeMillis()}.json") }
+                icon = Icons.Default.CloudUpload,
+                title = "Manual Export",
+                subtitle = "Save all metadata, favorites, and history to a file",
+                onClick = { exportLauncher.launch("snoufly_backup_${System.currentTimeMillis()}.json") }
             )
             SettingsItem(
-                icon = Icons.Default.FileDownload,
-                title = "Import Settings",
-                subtitle = "Restore your previous edits from a backup file",
-                onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }
+                icon = Icons.Default.CloudDownload,
+                title = "Manual Import",
+                subtitle = "Restore data from a backup file",
+                onClick = { importLauncher.launch(arrayOf("application/json")) }
             )
+            
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp)
+            
+            SettingsItem(
+                icon = Icons.Default.Folder,
+                title = "Auto Backup Location",
+                subtitle = backupUri?.toUri()?.path ?: "Not set (Select folder)",
+                onClick = { folderLauncher.launch(null) }
+            )
+            
+            SettingsItem(
+                icon = Icons.Default.Schedule,
+                title = "Backup Frequency",
+                subtitle = backupInterval.name.lowercase().replaceFirstChar { it.uppercase() },
+                onClick = { showBackupIntervalDialog = true }
+            )
+            
+            if (lastBackupTime > 0) {
+                val dateStr = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(lastBackupTime))
+                Text(
+                    text = "Last backup: $dateStr",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
+                )
+            }
 
             SettingsCategory(title = "Appearance")
             SettingsItem(
@@ -170,6 +203,43 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showThemeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showBackupIntervalDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackupIntervalDialog = false },
+            title = { Text("Backup Frequency") },
+            text = {
+                Column {
+                    BackupInterval.entries.forEach { interval ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = backupInterval == interval,
+                                onClick = {
+                                    viewModel.updateBackupSettings(backupUri, interval)
+                                    showBackupIntervalDialog = false
+                                }
+                            )
+                            Text(
+                                text = interval.name.lowercase().replaceFirstChar { it.uppercase() },
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBackupIntervalDialog = false }) {
                     Text("Cancel")
                 }
             }
