@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
                     mainViewModel.loadSongs()
                     playbackViewModel.initController(context, mainViewModel)
                 } else {
-                    Toast.makeText(this, "Permission denied. Please grant storage access to scan music.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Permission denied. Please grant storage access.", Toast.LENGTH_LONG).show()
                 }
             }
 
@@ -203,10 +203,8 @@ class MainActivity : ComponentActivity() {
                             }
                             @OptIn(ExperimentalMaterial3Api::class)
                             composable("listen_again") {
-                                // Aquí estaba el error de listenAgain
-                                // Verificamos si existe en MainViewModel.kt antes de usarlo.
-                                // Si no existe, podemos usar songs o una lista vacía temporalmente.
-                                val songs by mainViewModel.songs.collectAsState()
+                                // RESTAURADO: Ahora usa el flujo inteligente 'listenAgain'
+                                val listenAgainSongs by mainViewModel.listenAgain.collectAsState()
                                 val favoriteIds by mainViewModel.favoriteIds.collectAsState()
                                 
                                 Scaffold(
@@ -221,23 +219,29 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 ) { p ->
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxSize().padding(p),
-                                        contentPadding = PaddingValues(bottom = 80.dp)
-                                    ) {
-                                        items(songs) { song ->
-                                            SongItem(
-                                                song = song,
-                                                isFavorite = favoriteIds.contains(song.id),
-                                                onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
-                                                onClick = {
-                                                    val index = songs.indexOf(song)
-                                                    playbackViewModel.playSongs(songs, index)
-                                                    navController.navigate(Screen.Player.route)
-                                                },
-                                                onEditClick = { globalEditingSong = song },
-                                                onSelectLrcClick = { /* Manual LRC */ }
-                                            )
+                                    if (listenAgainSongs.isEmpty()) {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                            Text("Keep listening to discover your favorites!")
+                                        }
+                                    } else {
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize().padding(p),
+                                            contentPadding = PaddingValues(bottom = 80.dp)
+                                        ) {
+                                            items(listenAgainSongs) { song ->
+                                                SongItem(
+                                                    song = song,
+                                                    isFavorite = favoriteIds.contains(song.id),
+                                                    onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
+                                                    onClick = {
+                                                        val index = listenAgainSongs.indexOf(song)
+                                                        playbackViewModel.playSongs(listenAgainSongs, index)
+                                                        navController.navigate(Screen.Player.route)
+                                                    },
+                                                    onEditClick = { globalEditingSong = song },
+                                                    onSelectLrcClick = { /* Manual LRC */ }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -282,7 +286,6 @@ class MainActivity : ComponentActivity() {
                         song = song,
                         onDismiss = { globalEditingSong = null },
                         onConfirm = { title, artist, album ->
-                            // Corregido: updateSongMetadata -> updateSongMetadata (verificamos si el nombre es correcto)
                             mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
                             globalEditingSong = null
                         }
