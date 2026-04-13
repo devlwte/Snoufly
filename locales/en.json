@@ -1,0 +1,109 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "reset": "Reset",
+    "search": "Search",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "unknown_artist": "Unknown Artist",
+    "unknown_album": "Unknown Album",
+    "unknown_title": "Unknown Title",
+    "permission_denied": "Permission denied. Please grant storage access.",
+    "error_occurred": "An error occurred",
+    "done": "Done"
+  },
+  "library": {
+    "title": "My Library",
+    "search_placeholder": "Search songs, artists...",
+    "recently_played": "Recently Played",
+    "all_songs": "All Songs",
+    "listen_again": "Listen Again",
+    "listen_again_sub": "Keep listening to discover your favorites!",
+    "see_all": "See All",
+    "no_songs": "No songs found in your device",
+    "tabs": {
+      "recents": "Recents",
+      "az": "A-Z",
+      "artists": "Artists",
+      "albums": "Albums",
+      "duration": "Duration"
+    }
+  },
+  "player": {
+    "title": "Now Playing",
+    "playing_from": "PLAYING FROM LIBRARY",
+    "lyrics_btn": "LYRICS",
+    "no_lyrics": "No lyrics found",
+    "searching_lyrics": "Searching for lyrics...",
+    "menu_edit": "Edit Song Info",
+    "menu_resync": "Resync Online",
+    "menu_choose_lrc": "Select .lrc file",
+    "lyrics_found": "Lyrics found!",
+    "lyrics_not_found": "No lyrics found online"
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "No favorite songs yet"
+  },
+  "equalizer": {
+    "title": "Sound Laboratory",
+    "engine_name": "Engine Snoufly v5.2",
+    "engine_active": "Character FX Engine Active",
+    "presets_title": "Presets & Vocal Styles",
+    "sonic_engine": "Sonic Engine (RealTime FX)",
+    "speed": "Playback Speed",
+    "pitch": "Vocal Tone (Pitch)",
+    "studio_bands": "Studio Frequency Bands",
+    "bass": "BASS",
+    "low": "LOW",
+    "mid": "MID",
+    "high": "HIGH",
+    "air": "AIR"
+  },
+  "settings": {
+    "title": "Settings",
+    "cat_language": "Language",
+    "select_lang": "App Language",
+    "no_langs": "Connect to repository to load more languages",
+    "repo_url": "Repository URL",
+    "cat_library": "Library & Content",
+    "rescan": "Rescan Library",
+    "rescan_sub": "Scan for new music files",
+    "min_duration": "Minimum Song Duration",
+    "hide_shorter": "Hide tracks shorter than {0}s",
+    "cat_audio": "Audio & Effects",
+    "eq_engine": "Equalizer & Sonic Engine",
+    "eq_engine_sub": "Configure EQ, Speed and Pitch",
+    "cat_data": "Data & Backup",
+    "backup_folder": "Backup Folder",
+    "export": "Export Backup",
+    "export_sub": "Save your settings and favorites",
+    "import": "Restore Backup",
+    "import_sub": "Load from a backup file",
+    "cat_appearance": "Appearance",
+    "theme": "Theme Mode",
+    "theme_system": "System Default",
+    "theme_light": "Light Mode",
+    "theme_dark": "Dark Mode",
+    "cat_lyrics": "Lyrics API",
+    "api_template": "API Template"
+  },
+  "edit_dialog": {
+    "title": "Edit Song Info",
+    "helper_text": "Changes applied globally across the app",
+    "label_title": "Song Title",
+    "label_artist": "Artist Name",
+    "label_album": "Album Title"
+  },
+  "song_item": {
+    "menu": {
+      "favorite": "Favorite",
+      "edit": "Edit info",
+      "select_lrc": "Select lyrics",
+      "share": "Share",
+      "delete": "Delete from device"
+    }
+  }
+}
