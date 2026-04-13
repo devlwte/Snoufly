@@ -286,6 +286,7 @@ class MainActivity : ComponentActivity() {
                         song = song,
                         onDismiss = { globalEditingSong = null },
                         onConfirm = { title, artist, album ->
+                            // El ViewModel maneja el metadato personalizado
                             mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
                             globalEditingSong = null
                         }

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,7 +43,7 @@ fun EqualizerScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Sound Laboratory", fontWeight = FontWeight.ExtraBold) },
+                title = { Text(mainViewModel.t("equalizer", "title", "Sound Laboratory"), fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -80,14 +81,14 @@ fun EqualizerScreen(
                     Icon(Icons.Default.AutoAwesome, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Engine Snoufly v5.2", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Character FX Engine Active", style = MaterialTheme.typography.bodySmall)
+                        Text(mainViewModel.t("equalizer", "engine_name", "Engine Snoufly v5.2"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(mainViewModel.t("equalizer", "engine_active", "Engine Active"), style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = eqEnabled, onCheckedChange = { mainViewModel.updateEqEnabled(it) })
                 }
             }
 
-            Text("Presets & Vocal Styles", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(mainViewModel.t("equalizer", "presets_title", "Presets"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             SecondaryScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 0.dp,
@@ -115,44 +116,29 @@ fun EqualizerScreen(
                     FilterChip(
                         selected = isSelected,
                         onClick = { mainViewModel.applyPreset(preset) },
-                        label = { 
-                            Text(
-                                text = when(preset) {
-                                    "Anime" -> "🌸 Anime"
-                                    "Droid" -> "🤖 Droid"
-                                    "Deep Bot" -> "🎙️ Deep Bot"
-                                    "Chipmunk" -> "🐿️ Chipmunk"
-                                    else -> preset
-                                },
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            ) 
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White
-                        )
+                        label = { Text(preset) },
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
             }
 
-            Text("Sonic Engine (RealTime FX)", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(mainViewModel.t("equalizer", "sonic_engine", "Sonic Engine"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             AudioControlSlider(
-                label = "Speed",
+                label = mainViewModel.t("equalizer", "speed", "Speed"),
                 value = playbackSpeed,
                 valueRange = 0.5f..2.0f, 
                 onValueChange = { mainViewModel.updatePlaybackSpeed(it) },
                 formattedValue = String.format("%.2fx", playbackSpeed)
             )
             AudioControlSlider(
-                label = "Vocal Tone (Pitch)",
+                label = mainViewModel.t("equalizer", "pitch", "Pitch"),
                 value = playbackPitch,
                 valueRange = 0.5f..2.0f, 
                 onValueChange = { mainViewModel.updatePlaybackPitch(it) },
                 formattedValue = String.format("%.2fx", playbackPitch)
             )
 
-            Text("Studio Frequency Bands", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(mainViewModel.t("equalizer", "studio_bands", "Frequencies"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Row(
                 modifier = Modifier.fillMaxWidth().height(220.dp).padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -183,14 +169,14 @@ fun AudioControlSlider(label: String, value: Float, valueRange: ClosedFloatingPo
             Text(label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             Text(formattedValue, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
         }
-        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary))
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange)
     }
 }
 
 @Composable
 fun RowScope.BandSlider(label: String, level: Int, enabled: Boolean, onLevelChange: (Int) -> Unit) {
     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = "${if (level > 0) "+" else ""}${level / 100}dB", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+        Text(text = "${level / 100}dB", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         Slider(value = level.toFloat(), onValueChange = { if (enabled) onLevelChange(it.toInt()) }, valueRange = -1500f..1500f, modifier = Modifier.weight(1f).graphicsLayer(rotationZ = 270f), enabled = enabled)
         Spacer(modifier = Modifier.height(8.dp))

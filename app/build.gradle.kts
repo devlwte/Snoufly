@@ -1,17 +1,16 @@
 plugins {
     alias(libs.plugins.android.application)
-    // El plugin de Kotlin ya no es necesario aquí en AGP 9.0+
     alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.kyrn.snoufly"
-    compileSdk = 36 // Actualizado según recomendaciones anteriores
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.kyrn.snoufly"
         minSdk = 24
-        targetSdk = 36 // Actualizado según recomendaciones anteriores
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -20,30 +19,19 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true 
-            isShrinkResources = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
-    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     buildFeatures {
         compose = true
-        resValues = true
-    }
-}
-
-// Seguimos necesitando configurar el jvmTarget para el compilador de Kotlin integrado
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -68,6 +56,7 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.documentfile)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
