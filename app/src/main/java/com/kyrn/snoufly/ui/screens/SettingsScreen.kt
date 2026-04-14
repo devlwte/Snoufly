@@ -15,12 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import com.kyrn.snoufly.R
 import com.kyrn.snoufly.data.BackupInterval
 import com.kyrn.snoufly.data.ThemeMode
 import com.kyrn.snoufly.ui.MainViewModel
@@ -36,39 +34,75 @@ fun SettingsScreen(
     val context = LocalContext.current
     val minDuration by viewModel.minDuration.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
-    
-    // IMPORTANTE: Observar las traducciones para que la UI se actualice
+
     val translations by viewModel.translations.collectAsState()
 
-    // Estados de Idioma OTA
-    val repoUrl by viewModel.langRepoUrl.collectAsState()
+    // Language states
+    @Suppress("SpellCheckingInspection")
     val availableLangs by viewModel.availableLanguages.collectAsState()
+    val repoUrl by viewModel.langRepoUrl.collectAsState()
     val isDownloading by viewModel.isDownloadingLang.collectAsState()
     val selectedCode by viewModel.selectedLangCode.collectAsState()
 
-    // Estados de Backup
+    // Backup & Lyrics states
     val backupUri by viewModel.backupUri.collectAsState()
     val backupInterval by viewModel.backupInterval.collectAsState()
     val lastBackupTime by viewModel.lastBackupTime.collectAsState()
     val lyricsTemplate by viewModel.lyricsApiTemplate.collectAsState()
     val lyricsUserAgent by viewModel.lyricsUserAgent.collectAsState()
 
-    var showRepoDialog by remember { mutableStateOf(false) }
-    var showThemeDialog by remember { mutableStateOf(false) }
-    var showBackupIntervalDialog by remember { mutableStateOf(false) }
-    var showLyricsConfigDialog by remember { mutableStateOf(false) }
+    // Dialog visibility — using MutableState directly avoids "assigned value is never read" warnings
+    val showRepoDialog = remember { mutableStateOf(false) }
+    val showThemeDialog = remember { mutableStateOf(false) }
+    val showBackupIntervalDialog = remember { mutableStateOf(false) }
+    val showLyricsConfigDialog = remember { mutableStateOf(false) }
 
-    val backupExportedMsg = stringResource(R.string.backup_exported)
-    val exportFailedMsg = stringResource(R.string.export_failed)
-    val dataRestoredMsg = stringResource(R.string.data_restored)
-    val restoreFailedMsg = stringResource(R.string.restore_failed)
+    // Dialog field states
+    var tempUrl by remember { mutableStateOf(repoUrl) }
+    var tempTemplate by remember { mutableStateOf(lyricsTemplate) }
+    var tempUserAgent by remember { mutableStateOf(lyricsUserAgent) }
+
+    // Reset dialog fields when dialogs open
+    LaunchedEffect(showRepoDialog.value) {
+        if (showRepoDialog.value) tempUrl = repoUrl
+    }
+    LaunchedEffect(showLyricsConfigDialog.value) {
+        if (showLyricsConfigDialog.value) {
+            tempTemplate = lyricsTemplate
+            tempUserAgent = lyricsUserAgent
+        }
+    }
+
+    // Translation helper
+    fun t(section: String, key: String, fallback: String): String {
+        val sectionMap = when (section) {
+            "common" -> translations.common
+            "library" -> translations.library
+            "player" -> translations.player
+            "favorites" -> translations.favorites
+            "equalizer" -> translations.equalizer
+            "settings" -> translations.settings
+            "edit_dialog" -> translations.edit_dialog
+            "song_item" -> translations.song_item
+            else -> emptyMap()
+        }
+        val keys = key.split(".")
+        var current: Any? = sectionMap
+        for (part in keys) {
+            current = if (current is Map<*, *>) current[part] else null
+        }
+        return current?.toString() ?: fallback
+    }
+
+    fun ts(key: String, fallback: String) = t("settings", key, fallback)
+    fun tc(key: String, fallback: String) = t("common", key, fallback)
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
             uri?.let {
                 viewModel.exportBackup(it) { success ->
-                    Toast.makeText(context, if (success) backupExportedMsg else exportFailedMsg, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (success) tc("done", "Done") else tc("error_occurred", "Error"), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -79,7 +113,7 @@ fun SettingsScreen(
         onResult = { uri ->
             uri?.let {
                 viewModel.importBackup(it) { success ->
-                    Toast.makeText(context, if (success) dataRestoredMsg else restoreFailedMsg, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (success) tc("done", "Done") else tc("error_occurred", "Error"), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -94,33 +128,18 @@ fun SettingsScreen(
         }
     )
 
-    // Helpers de traducción mejorados (ahora dependen de 'translations')
-    fun t(section: String, key: String, fallback: String): String {
-        val map = when(section) {
-            "common" -> translations.common
-            "library" -> translations.library
-            "player" -> translations.player
-            "favorites" -> translations.favorites
-            "equalizer" -> translations.equalizer
-            "settings" -> translations.settings
-            "edit_dialog" -> translations.edit_dialog
-            "song_item" -> translations.song_item
-            else -> emptyMap()
-        }
-        return map[key] ?: fallback
-    }
-    fun ts(key: String, fallback: String) = t("settings", key, fallback)
-    fun tc(key: String, fallback: String) = t("common", key, fallback)
-
     Scaffold(
         topBar = { TopAppBar(title = { Text(ts("title", "Settings"), fontWeight = FontWeight.Bold) }) }
     ) { padding ->
         Column(
-            modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
-            // --- SECCIÓN IDIOMA ---
+            // --- LANGUAGE ---
             SettingsCategory(ts("cat_language", "Language"))
-            
+
             SettingsItem(
                 icon = Icons.Default.Language,
                 title = ts("select_lang", "App Language"),
@@ -128,9 +147,10 @@ fun SettingsScreen(
                 onClick = {}
             )
 
-            // Selector horizontal de idiomas disponibles del repo
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 availableLangs.forEach { lang ->
@@ -142,7 +162,12 @@ fun SettingsScreen(
                     )
                 }
                 if (availableLangs.isEmpty()) {
-                    Text(ts("no_langs", "Connect to repository to load more languages"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    Text(
+                        @Suppress("SpellCheckingInspection")
+                        ts("no_langs", "Connect to repository"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
                 }
             }
 
@@ -150,12 +175,16 @@ fun SettingsScreen(
                 icon = Icons.Default.Link,
                 title = ts("repo_url", "Language Repository"),
                 subtitle = repoUrl,
-                onClick = { showRepoDialog = true }
+                onClick = { showRepoDialog.value = true }
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = 0.5.dp,
+                color = Color.Gray.copy(alpha = 0.2f)
+            )
 
-            // --- SECCIÓN LIBRERÍA ---
+            // --- LIBRARY ---
             SettingsCategory(ts("cat_library", "Library & Content"))
             SettingsItem(
                 icon = Icons.Default.Refresh,
@@ -163,7 +192,7 @@ fun SettingsScreen(
                 subtitle = ts("rescan_sub", "Scan for new music files"),
                 onClick = { viewModel.loadSongs() }
             )
-            
+
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(ts("min_duration", "Minimum Song Duration"), style = MaterialTheme.typography.bodyMedium)
                 Slider(
@@ -173,13 +202,13 @@ fun SettingsScreen(
                     steps = 11
                 )
                 Text(
-                    text = ts("hide_shorter", "Hide tracks shorter than {0}s").replace("{0}", (minDuration/1000).toString()),
+                    text = ts("hide_shorter", "Hide tracks shorter than {0}s").replace("{0}", (minDuration / 1000).toString()),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            // --- SECCIÓN AUDIO ---
+            // --- AUDIO ---
             SettingsCategory(ts("cat_audio", "Audio & Effects"))
             SettingsItem(
                 icon = Icons.Default.GraphicEq,
@@ -188,87 +217,81 @@ fun SettingsScreen(
                 onClick = onEqualizerClick
             )
 
-            // --- SECCIÓN LYRICS ENGINE ---
-            SettingsCategory(title = ts("cat_lyrics", "Lyrics Engine"))
+            // --- LYRICS ---
+            SettingsCategory(ts("cat_lyrics", "Lyrics Engine"))
             SettingsItem(
                 icon = Icons.Default.Language,
-                title = ts("lyrics_provider", "Online Lyrics Provider"),
-                subtitle = ts("lyrics_provider_sub", "Configure API templates and User-Agent"),
-                onClick = { showLyricsConfigDialog = true }
+                title = ts("api_template", "Online Lyrics Provider"),
+                subtitle = lyricsTemplate.ifBlank { @Suppress("SpellCheckingInspection") "Default (LRCLIB)" },
+                onClick = { showLyricsConfigDialog.value = true }
             )
 
-            // --- SECCIÓN DATA & BACKUP ---
-            SettingsCategory(title = ts("cat_backup", "Data & Backup"))
+            // --- DATA & BACKUP ---
+            SettingsCategory(ts("cat_data", "Data & Backup"))
             SettingsItem(
                 icon = Icons.Default.CloudUpload,
-                title = ts("manual_export", "Manual Export"),
-                subtitle = ts("manual_export_sub", "Save all metadata, favorites, and history"),
+                title = ts("export", "Manual Export"),
+                subtitle = ts("export_sub", "Save metadata and favorites"),
                 onClick = { exportLauncher.launch("snoufly_backup_${System.currentTimeMillis()}.json") }
             )
             SettingsItem(
                 icon = Icons.Default.CloudDownload,
-                title = ts("manual_import", "Manual Import"),
-                subtitle = ts("manual_import_sub", "Restore data from a backup file"),
+                title = ts("import", "Manual Import"),
+                subtitle = ts("import_sub", "Restore from file"),
                 onClick = { importLauncher.launch(arrayOf("application/json")) }
             )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.1f))
-            
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = 0.5.dp,
+                color = Color.Gray.copy(alpha = 0.1f)
+            )
+
             SettingsItem(
                 icon = Icons.Default.Folder,
-                title = ts("auto_backup_loc", "Auto Backup Location"),
-                subtitle = backupUri?.toUri()?.path ?: ts("not_set", "Not set (Select folder)"),
+                title = ts("backup_folder", "Auto Backup Location"),
+                subtitle = backupUri?.toUri()?.path ?: "Not set",
                 onClick = { folderLauncher.launch(null) }
             )
-            
+
             SettingsItem(
                 icon = Icons.Default.Schedule,
-                title = ts("backup_freq", "Backup Frequency"),
+                title = "Backup Frequency",
                 subtitle = backupInterval.name.lowercase().replaceFirstChar { it.uppercase() },
-                onClick = { showBackupIntervalDialog = true }
+                onClick = { showBackupIntervalDialog.value = true }
             )
 
             if (lastBackupTime > 0) {
                 val dateStr = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(lastBackupTime))
                 Text(
-                    text = ts("last_backup", "Last backup: {0}").replace("{0}", dateStr),
+                    text = "Last backup: $dateStr",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
                 )
             }
 
-            // --- SECCIÓN APARIENCIA ---
+            // --- APPEARANCE ---
             SettingsCategory(ts("cat_appearance", "Appearance"))
             SettingsItem(
                 icon = Icons.Default.Palette,
                 title = ts("theme", "Theme Mode"),
-                subtitle = when(themeMode) {
+                subtitle = when (themeMode) {
                     ThemeMode.SYSTEM -> ts("theme_system", "System Default")
                     ThemeMode.LIGHT -> ts("theme_light", "Light Mode")
                     ThemeMode.DARK -> ts("theme_dark", "Dark Mode")
                 },
-                onClick = { showThemeDialog = true }
-            )
-
-            // --- SECCIÓN ABOUT (RESTAURADA) ---
-            SettingsCategory(ts("cat_about", "About"))
-            SettingsItem(
-                icon = Icons.Default.Info,
-                title = ts("version", "Version"),
-                subtitle = "1.0.0 (Stable)",
-                onClick = {}
+                onClick = { showThemeDialog.value = true }
             )
 
             Spacer(modifier = Modifier.height(48.dp))
         }
     }
 
-    // Modales (Repo, Letras, Tema, Backup...)
-    if (showRepoDialog) {
-        var tempUrl by remember { mutableStateOf(repoUrl) }
+    // Dialogs
+    if (showRepoDialog.value) {
         AlertDialog(
-            onDismissRequest = { showRepoDialog = false },
+            onDismissRequest = { showRepoDialog.value = false },
             title = { Text(ts("repo_url", "Repository URL")) },
             text = {
                 OutlinedTextField(
@@ -281,27 +304,25 @@ fun SettingsScreen(
             confirmButton = {
                 Button(onClick = {
                     viewModel.updateLangRepoUrl(tempUrl)
-                    showRepoDialog = false
+                    showRepoDialog.value = false
                 }) { Text(tc("save", "Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { showRepoDialog = false }) { Text(tc("cancel", "Cancel")) }
+                TextButton(onClick = { showRepoDialog.value = false }) { Text(tc("cancel", "Cancel")) }
             }
         )
     }
 
-    if (showLyricsConfigDialog) {
-        var tempTemplate by remember { mutableStateOf(lyricsTemplate) }
-        var tempUserAgent by remember { mutableStateOf(lyricsUserAgent) }
+    if (showLyricsConfigDialog.value) {
         AlertDialog(
-            onDismissRequest = { showLyricsConfigDialog = false },
-            title = { Text(ts("lyrics_config", "Lyrics API Configuration")) },
+            onDismissRequest = { showLyricsConfigDialog.value = false },
+            title = { Text("Lyrics API Configuration") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     OutlinedTextField(
                         value = tempTemplate,
                         onValueChange = { tempTemplate = it },
-                        label = { Text("API URL Template") },
+                        label = { Text(ts("api_template", "API URL Template")) },
                         modifier = Modifier.fillMaxWidth(),
                         supportingText = { Text("%TRACK%, %ARTIST%, %ALBUM%", fontSize = 10.sp) }
                     )
@@ -316,57 +337,59 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.updateLyricsSettings(tempTemplate, tempUserAgent)
-                    showLyricsConfigDialog = false
+                    showLyricsConfigDialog.value = false
                 }) { Text(tc("save", "Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { showLyricsConfigDialog = false }) { Text(tc("cancel", "Cancel")) }
+                TextButton(onClick = { showLyricsConfigDialog.value = false }) { Text(tc("cancel", "Cancel")) }
             }
         )
     }
 
-    if (showThemeDialog) {
+    if (showThemeDialog.value) {
         AlertDialog(
-            onDismissRequest = { showThemeDialog = false },
+            onDismissRequest = { showThemeDialog.value = false },
             title = { Text(ts("theme", "Theme Mode")) },
             text = {
                 Column {
                     ThemeOption(ts("theme_system", "System Default"), themeMode == ThemeMode.SYSTEM) {
                         viewModel.updateThemeMode(ThemeMode.SYSTEM)
-                        showThemeDialog = false
+                        showThemeDialog.value = false
                     }
                     ThemeOption(ts("theme_light", "Light Mode"), themeMode == ThemeMode.LIGHT) {
                         viewModel.updateThemeMode(ThemeMode.LIGHT)
-                        showThemeDialog = false
+                        showThemeDialog.value = false
                     }
                     ThemeOption(ts("theme_dark", "Dark Mode"), themeMode == ThemeMode.DARK) {
                         viewModel.updateThemeMode(ThemeMode.DARK)
-                        showThemeDialog = false
+                        showThemeDialog.value = false
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showThemeDialog = false }) { Text(tc("cancel", "Cancel")) }
+                TextButton(onClick = { showThemeDialog.value = false }) { Text(tc("cancel", "Cancel")) }
             }
         )
     }
 
-    if (showBackupIntervalDialog) {
+    if (showBackupIntervalDialog.value) {
         AlertDialog(
-            onDismissRequest = { showBackupIntervalDialog = false },
-            title = { Text(ts("backup_freq", "Backup Frequency")) },
+            onDismissRequest = { showBackupIntervalDialog.value = false },
+            title = { Text("Backup Frequency") },
             text = {
                 Column {
                     BackupInterval.entries.forEach { interval ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
                                 selected = backupInterval == interval,
                                 onClick = {
                                     viewModel.updateBackupSettings(backupUri, interval)
-                                    showBackupIntervalDialog = false
+                                    showBackupIntervalDialog.value = false
                                 }
                             )
                             Text(
@@ -379,7 +402,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showBackupIntervalDialog = false }) {
+                TextButton(onClick = { showBackupIntervalDialog.value = false }) {
                     Text(tc("cancel", "Cancel"))
                 }
             }
@@ -390,7 +413,9 @@ fun SettingsScreen(
 @Composable
 fun ThemeOption(text: String, selected: Boolean, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(selected = selected, onClick = onClick)
@@ -400,13 +425,23 @@ fun ThemeOption(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 fun SettingsCategory(title: String) {
-    Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp))
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(16.dp)
+    )
 }
 
 @Composable
 fun SettingsItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Surface(onClick = onClick, color = Color.Transparent) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(icon, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(16.dp))
             Column {

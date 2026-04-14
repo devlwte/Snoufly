@@ -1,7 +1,6 @@
 package com.kyrn.snoufly.data
 
 import androidx.annotation.Keep
-import com.google.gson.annotations.SerializedName
 
 @Keep
 data class LanguageInfo(
@@ -21,12 +20,12 @@ data class LanguageInfo(
 
 @Keep
 data class TranslationMap(
-    val common: Map<String, String> = emptyMap(),
-    val library: Map<String, String> = emptyMap(),
-    val player: Map<String, String> = emptyMap(),
-    val favorites: Map<String, String> = emptyMap(),
-    val equalizer: Map<String, String> = emptyMap(),
-    val settings: Map<String, String> = emptyMap(),
-    val edit_dialog: Map<String, String> = emptyMap(),
-    val song_item: Map<String, String> = emptyMap()
+    val common: Map<String, Any> = emptyMap(),
+    val library: Map<String, Any> = emptyMap(),
+    val player: Map<String, Any> = emptyMap(),
+    val favorites: Map<String, Any> = emptyMap(),
+    val equalizer: Map<String, Any> = emptyMap(),
+    val settings: Map<String, Any> = emptyMap(),
+    val edit_dialog: Map<String, Any> = emptyMap(),
+    val song_item: Map<String, Any> = emptyMap()
 )

@@ -70,36 +70,6 @@ class MainViewModel(
     val lyricsApiTemplate = settingsManager.lyricsApiTemplateFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val lyricsUserAgent = settingsManager.lyricsUserAgentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    val audioCategories = mapOf(
-        "Standard" to listOf("Normal", "Balanced", "Loudness"),
-        "Music Genre" to listOf("Rock", "Pop", "Jazz", "Classical", "Electronic"),
-        "Vocal & Arts" to listOf("Clear Voice", "Podcast"),
-        "Pro Effects" to listOf("Bass Max", "Treble Boost", "Cinematic"),
-        "Character FX" to listOf("Anime", "Droid", "Deep Bot", "Chipmunk")
-    )
-
-    data class AudioPreset(val bands: List<Int>, val speed: Float = 1.0f, val pitch: Float = 1.0f)
-
-    val audioPresets = mapOf(
-        "Normal" to AudioPreset(listOf(0, 0, 0, 0, 0)),
-        "Balanced" to AudioPreset(listOf(200, 100, 0, 100, 200)),
-        "Loudness" to AudioPreset(listOf(400, 0, -200, 0, 400)),
-        "Rock" to AudioPreset(listOf(600, 400, -200, 300, 600)),
-        "Pop" to AudioPreset(listOf(-200, 300, 600, 200, -300)),
-        "Jazz" to AudioPreset(listOf(500, 200, -100, 400, 200)),
-        "Classical" to AudioPreset(listOf(400, 300, 0, 300, 500)),
-        "Electronic" to AudioPreset(listOf(700, 300, 0, 400, 700)),
-        "Clear Voice" to AudioPreset(listOf(-400, -200, 800, 400, -200)),
-        "Podcast" to AudioPreset(listOf(-500, 0, 1000, 200, -500)),
-        "Bass Max" to AudioPreset(listOf(1200, 800, 0, 0, 0)),
-        "Treble Boost" to AudioPreset(listOf(0, 0, 0, 600, 1200)),
-        "Cinematic" to AudioPreset(listOf(600, 200, -200, 200, 800)),
-        "Anime" to AudioPreset(listOf(300, 100, -100, 900, 1500), 1.05f, 1.25f),
-        "Droid" to AudioPreset(listOf(200, -300, 1000, -300, 800), 0.95f, 0.85f),
-        "Deep Bot" to AudioPreset(listOf(800, 400, -500, -500, -800), 0.90f, 0.70f),
-        "Chipmunk" to AudioPreset(listOf(-500, -200, 0, 500, 1200), 1.15f, 1.50f)
-    )
-
     // --- CANCIONES ENRIQUECIDAS ---
     val enrichedSongs: StateFlow<List<Song>> = combine(_rawSongs, customMetadataMap) { raw, customs ->
         raw.map { song ->
@@ -132,7 +102,7 @@ class MainViewModel(
     val favorites = combine(enrichedSongs, favoriteIds) { s, ids -> s.filter { it.id in ids } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val listenAgain = combine(enrichedSongs, playCounts) { s, counts -> counts.entries.sortedByDescending { it.value }.take(30).mapNotNull { e -> s.find { it.id == e.key } } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- LETRAS STATE ---
+    // --- MOTOR DE LETRAS ---
     private val _currentLyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val currentLyrics = _currentLyrics.asStateFlow()
     private val _isFetchingLyrics = MutableStateFlow(false)
@@ -140,13 +110,11 @@ class MainViewModel(
     private var _currentLyricsSongId = -1L
 
     init {
-        // Carga automática de traducciones al cambiar el código
         viewModelScope.launch {
             selectedLangCode.collectLatest { code ->
                 loadLocalTranslations(code)
             }
         }
-        // Refresco automático del catálogo al cambiar la URL
         viewModelScope.launch {
             langRepoUrl.collectLatest {
                 refreshLanguageCatalog()
@@ -161,7 +129,7 @@ class MainViewModel(
                 try {
                     val map = gson.fromJson(file.readText(), TranslationMap::class.java)
                     _currentTranslations.value = map
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     _currentTranslations.value = TranslationMap()
                 }
             } else {
@@ -181,7 +149,7 @@ class MainViewModel(
                     val list = gson.fromJson(json, Array<LanguageInfo>::class.java).toList()
                     _availableLanguages.value = list
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {}
         }
     }
 
@@ -200,27 +168,23 @@ class MainViewModel(
                             File(localesDir, "${lang.code}.json").writeText(json)
                             true
                         } else false
-                    } catch (_: Exception) { false }
+                    } catch (e: Exception) { false }
                 } ?: false
             }
             if (success) {
                 settingsManager.updateSelectedLang(lang.code)
-                Toast.makeText(getApplication(), "Language updated: ${lang.nativeName}", Toast.LENGTH_SHORT).show()
+                // Forzamos la carga incluso si el código es el mismo para actualizar el UI
+                loadLocalTranslations(lang.code)
+                withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Language updated: ${lang.nativeName}", Toast.LENGTH_SHORT).show() }
             } else {
-                Toast.makeText(getApplication(), "Failed to download language", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Error downloading language", Toast.LENGTH_SHORT).show() }
             }
             _isDownloadingLang.value = false
         }
     }
 
-    fun updateLangRepoUrl(url: String) {
-        viewModelScope.launch {
-            settingsManager.updateLangRepoUrl(url)
-        }
-    }
-
     fun t(section: String, key: String, fallback: String): String {
-        val map = when(section) {
+        val sectionMap = when(section) {
             "common" -> translations.value.common
             "library" -> translations.value.library
             "player" -> translations.value.player
@@ -229,88 +193,75 @@ class MainViewModel(
             "settings" -> translations.value.settings
             "edit_dialog" -> translations.value.edit_dialog
             "song_item" -> translations.value.song_item
-            else -> emptyMap()
+            else -> return fallback
         }
-        return map[key] ?: fallback
+        return getNestedValue(sectionMap, key) ?: fallback
     }
 
-    // --- ACCIONES CORE ---
-    fun loadSongs() = viewModelScope.launch { 
-        _isLoading.value = true
-        try { _rawSongs.value = repository.getAllSongs() } catch (_: Exception) {} finally { _isLoading.value = false }
+    private fun getNestedValue(map: Map<String, Any>, key: String): String? {
+        val keys = key.split(".")
+        var current: Any? = map
+        for (k in keys) {
+            if (current is Map<*, *>) {
+                current = current[k]
+            } else return null
+        }
+        return current?.toString()
     }
 
+    fun updateLangRepoUrl(url: String) { viewModelScope.launch { settingsManager.updateLangRepoUrl(url) } }
+    fun loadSongs() = viewModelScope.launch { _isLoading.value = true; try { _rawSongs.value = repository.getAllSongs() } catch (e: Exception) {} finally { _isLoading.value = false } }
     fun updateSongMetadata(id: Long, t: String, a: String, al: String, c: String?) = viewModelScope.launch {
         val cur = customMetadataMap.value[id] ?: CustomMetadata()
         settingsManager.updateCustomMetadata(id, cur.copy(title = t, artist = a, album = al, coverUri = c ?: cur.coverUri))
         _currentLyricsSongId = -1L 
         loadLyricsForSong(id, t, a, al, 0)
     }
-
     fun updateManualLrc(id: Long, uri: String) = viewModelScope.launch {
         val cur = customMetadataMap.value[id] ?: CustomMetadata()
         settingsManager.updateCustomMetadata(id, cur.copy(lrcUri = uri))
         _currentLyricsSongId = -1L 
         loadLyricsForSong(id, null, null, null, 0)
     }
-
     fun applyPreset(name: String) {
         val cfg = audioPresets[name] ?: return
-        viewModelScope.launch {
-            settingsManager.updateEqEnabled(true)
-            settingsManager.updateEqBands(cfg.bands)
-            settingsManager.updatePlaybackSpeed(cfg.speed)
-            settingsManager.updatePlaybackPitch(cfg.pitch)
-        }
+        viewModelScope.launch { settingsManager.updateEqEnabled(true); settingsManager.updateEqBands(cfg.bands); settingsManager.updatePlaybackSpeed(cfg.speed); settingsManager.updatePlaybackPitch(cfg.pitch) }
     }
     fun updateEqEnabled(e: Boolean) = viewModelScope.launch { settingsManager.updateEqEnabled(e) }
     fun updateEqBands(b: List<Int>) = viewModelScope.launch { settingsManager.updateEqBands(b) }
     fun updatePlaybackSpeed(s: Float) = viewModelScope.launch { settingsManager.updatePlaybackSpeed(s) }
     fun updatePlaybackPitch(p: Float) = viewModelScope.launch { settingsManager.updatePlaybackPitch(p) }
     fun updateLyricsSettings(t: String, u: String) = viewModelScope.launch { settingsManager.updateLyricsSettings(t, u) }
-
     fun exportBackup(uri: Uri, onResult: (Boolean) -> Unit) = viewModelScope.launch { onResult(backupManager.createBackup(uri).isSuccess) }
     fun importBackup(uri: Uri, onResult: (Boolean) -> Unit) = viewModelScope.launch { onResult(backupManager.restoreBackup(uri).isSuccess) }
     fun updateBackupSettings(u: String?, i: BackupInterval) = viewModelScope.launch { settingsManager.updateBackupSettings(u, i) }
-
     fun loadLyricsForSong(id: Long, title: String?, artist: String?, album: String?, duration: Long) {
         if (_currentLyricsSongId == id && _currentLyrics.value.isNotEmpty()) return
         viewModelScope.launch {
-            _currentLyrics.value = emptyList() 
-            _isFetchingLyrics.value = true
-            _currentLyricsSongId = id
+            _currentLyrics.value = emptyList(); _isFetchingLyrics.value = true; _currentLyricsSongId = id
             val file = File(getApplication<Application>().filesDir, "lyrics/$id.lrc")
-            if (file.exists()) {
-                _currentLyrics.value = LrcParser.parse(file.readText())
-            } else if (!title.isNullOrBlank() && !artist.isNullOrBlank()) {
+            if (file.exists()) { _currentLyrics.value = LrcParser.parse(file.readText()) } else if (!title.isNullOrBlank() && !artist.isNullOrBlank()) {
                 val lrc = fetchOnlineLyrics(title, artist, album ?: "", duration)
-                if (lrc != null) {
-                    _currentLyrics.value = LrcParser.parse(lrc)
-                    withContext(Dispatchers.IO) { try { val d = File(getApplication<Application>().filesDir, "lyrics"); if (!d.exists()) d.mkdirs(); File(d, "$id.lrc").writeText(lrc) } catch (_: Exception) {} }
-                }
+                if (lrc != null) { _currentLyrics.value = LrcParser.parse(lrc); withContext(Dispatchers.IO) { try { val d = File(getApplication<Application>().filesDir, "lyrics"); if (!d.exists()) d.mkdirs(); File(d, "$id.lrc").writeText(lrc) } catch (e: Exception) {} } }
             }
             _isFetchingLyrics.value = false
         }
     }
-
     private suspend fun fetchOnlineLyrics(t: String, a: String, al: String, d: Long): String? = withContext(Dispatchers.IO) {
-        val ct = t.replace(Regex("\\(.*?\\)"), "").trim()
-        val ca = a.replace(Regex("\\(.*?\\)"), "").trim()
+        val ct = t.replace(Regex("\\(.*?\\)"), "").trim(); val ca = a.replace(Regex("\\(.*?\\)"), "").trim()
         val url = "https://lrclib.net/api/search?track_name=${Uri.encode(ct)}&artist_name=${Uri.encode(ca)}"
         try {
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.setRequestProperty("User-Agent", "Snoufly/1.0")
             if (conn.responseCode == 200) {
                 val res = JsonParser.parseString(conn.inputStream.bufferedReader().use { it.readText() }).asJsonArray
-                if (res.size() > 0) {
-                    for (el in res) { val obj = el.asJsonObject; if (obj.has("syncedLyrics") && !obj.get("syncedLyrics").isJsonNull) return@withContext obj.get("syncedLyrics").asString }
+                if (res.size() > 0) { for (el in res) { val obj = el.asJsonObject; if (obj.has("syncedLyrics") && !obj.get("syncedLyrics").isJsonNull) return@withContext obj.get("syncedLyrics").asString }
                     return@withContext res.get(0).asJsonObject.get("plainLyrics")?.let { if (it.isJsonNull) null else it.asString }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
         null
     }
-
     fun toggleFavorite(id: Long) = viewModelScope.launch { settingsManager.toggleFavorite(id) }
     fun addToRecentlyPlayed(id: Long) = viewModelScope.launch {
         val list = recentlyPlayedIds.value.toMutableList().apply { remove(id); add(0, id) }
@@ -321,4 +272,8 @@ class MainViewModel(
     fun updateThemeMode(m: ThemeMode) = viewModelScope.launch { settingsManager.updateThemeMode(m) }
     fun updateSortOrder(o: SortOrder) = viewModelScope.launch { settingsManager.updateSortOrder(o) }
     fun updateMinDuration(d: Long) = viewModelScope.launch { settingsManager.updateMinDuration(d) }
+
+    val audioCategories = mapOf("Standard" to listOf("Normal", "Balanced", "Loudness"), "Music Genre" to listOf("Rock", "Pop", "Jazz", "Classical", "Electronic"), "Vocal & Arts" to listOf("Clear Voice", "Podcast"), "Pro Effects" to listOf("Bass Max", "Treble Boost", "Cinematic"), "Character FX" to listOf("Anime", "Droid", "Deep Bot", "Chipmunk"))
+    data class AudioPreset(val bands: List<Int>, val speed: Float = 1.0f, val pitch: Float = 1.0f)
+    val audioPresets = mapOf("Normal" to AudioPreset(listOf(0, 0, 0, 0, 0)), "Balanced" to AudioPreset(listOf(200, 100, 0, 100, 200)), "Loudness" to AudioPreset(listOf(400, 0, -200, 0, 400)), "Rock" to AudioPreset(listOf(600, 400, -200, 300, 600)), "Pop" to AudioPreset(listOf(-200, 300, 600, 200, -300)), "Jazz" to AudioPreset(listOf(500, 200, -100, 400, 200)), "Classical" to AudioPreset(listOf(400, 300, 0, 300, 500)), "Electronic" to AudioPreset(listOf(700, 300, 0, 400, 700)), "Clear Voice" to AudioPreset(listOf(-400, -200, 800, 400, -200)), "Podcast" to AudioPreset(listOf(-500, 0, 1000, 200, -500)), "Bass Max" to AudioPreset(listOf(1200, 800, 0, 0, 0)), "Treble Boost" to AudioPreset(listOf(0, 0, 0, 600, 1200)), "Cinematic" to AudioPreset(listOf(600, 200, -200, 200, 800)), "Anime" to AudioPreset(listOf(300, 100, -100, 900, 1500), 1.05f, 1.25f), "Droid" to AudioPreset(listOf(200, -300, 1000, -300, 800), 0.95f, 0.85f), "Deep Bot" to AudioPreset(listOf(800, 400, -500, -500, -800), 0.90f, 0.70f), "Chipmunk" to AudioPreset(listOf(-500, -200, 0, 500, 1200), 1.15f, 1.50f))
 }
