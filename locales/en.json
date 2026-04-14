@@ -25,6 +25,7 @@
     "no_songs": "No songs found in your device",
     "tabs": {
       "recents": "Recents",
+      "oldest": "Oldest First",
       "az": "A-Z",
       "artists": "Artists",
       "albums": "Albums",
