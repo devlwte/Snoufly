@@ -25,6 +25,7 @@
     "no_songs": "No se encontraron canciones",
     "tabs": {
       "recents": "Recientes",
+      "oldest": "Antiguos",
       "az": "A-Z",
       "artists": "Artistas",
       "albums": "Álbumes",
