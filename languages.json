@@ -1,0 +1,30 @@
+[
+  {
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "version": "1.0.0",
+    "minAppVersion": "1.0.0",
+    "author": "Snoufly Team",
+    "contributors": [],
+    "file": "locales/en.json",
+    "size": 4250,
+    "updatedAt": "2026-04-12",
+    "checksum": "a1b2c3d4",
+    "rtl": false
+  },
+  {
+    "code": "es",
+    "name": "Spanish",
+    "nativeName": "Español",
+    "version": "1.0.0",
+    "minAppVersion": "1.0.0",
+    "author": "Snoufly Team",
+    "contributors": [],
+    "file": "locales/es.json",
+    "size": 4380,
+    "updatedAt": "2026-04-12",
+    "checksum": "b2c3d4e5",
+    "rtl": false
+  }
+]

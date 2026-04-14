@@ -1,0 +1,110 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "back": "Atrás",
+    "reset": "Restablecer",
+    "search": "Buscar",
+    "edit": "Editar",
+    "loading": "Cargando...",
+    "unknown_artist": "Artista desconocido",
+    "unknown_album": "Álbum desconocido",
+    "unknown_title": "Título desconocido",
+    "permission_denied": "Permiso denegado. Activa el acceso a archivos.",
+    "error_occurred": "Ocurrió un error",
+    "done": "Hecho"
+  },
+  "library": {
+    "title": "Mi Biblioteca",
+    "search_placeholder": "Buscar canciones, artistas...",
+    "recently_played": "Recientes",
+    "all_songs": "Todas las canciones",
+    "listen_again": "Escuchar de nuevo",
+    "listen_again_sub": "¡Sigue escuchando para descubrir tus favoritas!",
+    "see_all": "Ver todo",
+    "no_songs": "No se encontraron canciones",
+    "tabs": {
+      "recents": "Recientes",
+      "oldest": "Antiguos",
+      "az": "A-Z",
+      "artists": "Artistas",
+      "albums": "Álbumes",
+      "duration": "Duración"
+    }
+  },
+  "player": {
+    "title": "Reproduciendo ahora",
+    "playing_from": "DESDE BIBLIOTECA",
+    "lyrics_btn": "LETRA",
+    "no_lyrics": "Sin letra",
+    "searching_lyrics": "Buscando letra...",
+    "menu_edit": "Editar información",
+    "menu_resync": "Sincronizar online",
+    "menu_choose_lrc": "Elegir archivo .lrc",
+    "lyrics_found": "¡Letra encontrada!",
+    "lyrics_not_found": "Sin letra online"
+  },
+  "favorites": {
+    "title": "Favoritos",
+    "empty": "Aún no hay canciones favoritas"
+  },
+  "equalizer": {
+    "title": "Laboratorio de Sonido",
+    "engine_name": "Motor Snoufly v5.2",
+    "engine_active": "Motor FX activo",
+    "presets_title": "Perfiles y Estilos",
+    "sonic_engine": "Motor Sónico (FX RealTime)",
+    "speed": "Velocidad",
+    "pitch": "Tono Vocal",
+    "studio_bands": "Bandas de Frecuencia",
+    "bass": "BASS",
+    "low": "LOW",
+    "mid": "MID",
+    "high": "HIGH",
+    "air": "AIR"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "cat_language": "Idioma",
+    "select_lang": "Idioma de la App",
+    "no_langs": "Conecta al repositorio para cargar idiomas",
+    "repo_url": "URL del Repositorio",
+    "cat_library": "Biblioteca y Contenido",
+    "rescan": "Reescanear Biblioteca",
+    "rescan_sub": "Buscar nuevos archivos",
+    "min_duration": "Duración Mínima",
+    "hide_shorter": "Ocultar menores a {0}s",
+    "cat_audio": "Audio y Efectos",
+    "eq_engine": "Ecualizador y Motor Sónico",
+    "eq_engine_sub": "Configurar EQ, Velocidad y Tono",
+    "cat_data": "Datos y Respaldo",
+    "backup_folder": "Carpeta de Respaldo",
+    "export": "Exportar Respaldo",
+    "export_sub": "Guardar ajustes y favoritos",
+    "import": "Restaurar Respaldo",
+    "import_sub": "Cargar desde un archivo",
+    "cat_appearance": "Apariencia",
+    "theme": "Modo de Tema",
+    "theme_system": "Predeterminado",
+    "theme_light": "Modo Claro",
+    "theme_dark": "Modo Oscuro",
+    "cat_lyrics": "API de Letras",
+    "api_template": "Plantilla de API"
+  },
+  "edit_dialog": {
+    "title": "Editar información",
+    "helper_text": "Cambios globales en toda la app",
+    "label_title": "Título",
+    "label_artist": "Artista",
+    "label_album": "Álbum"
+  },
+  "song_item": {
+    "menu": {
+      "favorite": "Favorito",
+      "edit": "Editar info",
+      "select_lrc": "Elegir letra",
+      "share": "Compartir",
+      "delete": "Eliminar dispositivo"
+    }
+  }
+}
