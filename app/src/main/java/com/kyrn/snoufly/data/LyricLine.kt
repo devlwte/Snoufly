@@ -38,7 +38,7 @@ object LrcParser {
         }
         
         return if (lyrics.isEmpty() && lrcContent.isNotBlank()) {
-            // Fallback: tratar todo como texto plano si no hay tags
+            // Fallback: tratar todo como text plano si no hay tags
             lrcContent.lines()
                 .filter { it.isNotBlank() }
                 .map { LyricLine(0L, it.trim()) }

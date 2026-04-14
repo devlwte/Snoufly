@@ -29,7 +29,6 @@ import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.SortOrder
 import com.kyrn.snoufly.ui.components.RecentlyPlayedCarousel
 import com.kyrn.snoufly.ui.components.SongItem
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +47,10 @@ fun LibraryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val favoriteIds by viewModel.favoriteIds.collectAsState()
+    
+    // Observar traducciones
+    val translations by viewModel.translations.collectAsState()
+    fun t(key: String, fallback: String) = viewModel.t("library", key, fallback)
 
     var isSearchActive by remember { mutableStateOf(false) }
     var selectingLrcForSongId by remember { mutableStateOf<Long?>(null) }
@@ -96,7 +99,7 @@ fun LibraryScreen(
                                 value = searchQuery,
                                 onValueChange = { viewModel.updateSearchQuery(it) },
                                 modifier = Modifier.weight(1f),
-                                placeholder = { Text("Search songs, artists...") },
+                                placeholder = { Text(t("search_placeholder", "Search songs, artists...")) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -146,10 +149,18 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val sortOrders = SortOrder.values()
+                    val sortOrders = SortOrder.entries.toTypedArray()
                     items(sortOrders) { order ->
-                        val displayName = order.name.replace("_", " ").lowercase()
-                            .replaceFirstChar { it.uppercase() }
+                        val key = when(order) {
+                            SortOrder.RECENTLY_ADDED -> "tabs.recents"
+                            SortOrder.OLDEST_FIRST -> "tabs.oldest"
+                            SortOrder.ALPHABETICAL -> "tabs.az"
+                            SortOrder.ARTIST -> "tabs.artists"
+                            SortOrder.ALBUM -> "tabs.albums"
+                            SortOrder.DURATION -> "tabs.duration"
+                            // else -> order.name.lowercase()
+                        }
+                        val displayName = t(key, order.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
                         
                         FilterChip(
                             selected = currentSortOrder == order,
@@ -176,7 +187,7 @@ fun LibraryScreen(
                         if (listenAgain.isNotEmpty()) {
                             item {
                                 RecentlyPlayedCarousel(
-                                    title = "Listen Again",
+                                    title = t("listen_again", "Listen Again"),
                                     songs = listenAgain.take(10),
                                     onSongClick = { song ->
                                         val index = songs.indexOf(song)
@@ -193,7 +204,7 @@ fun LibraryScreen(
                         if (recentlyPlayed.isNotEmpty()) {
                             item {
                                 RecentlyPlayedCarousel(
-                                    title = "Recently Played",
+                                    title = t("recently_played", "Recently Played"),
                                     songs = recentlyPlayed,
                                     onSongClick = { song -> 
                                         val index = songs.indexOf(song)
@@ -207,7 +218,7 @@ fun LibraryScreen(
                         if (recentlyPlayed.isNotEmpty() || listenAgain.isNotEmpty()) {
                             item {
                                 Text(
-                                    text = "Your Library",
+                                    text = t("all_songs", "Your Library"),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

@@ -2,12 +2,11 @@ package com.kyrn.snoufly.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -29,27 +28,47 @@ class BackupManager(
 
     suspend fun createBackup(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val backupData = BackupData(
-                favoriteIds = settingsManager.favoriteIdsFlow.first(),
-                recentlyPlayedIds = settingsManager.recentlyPlayedIdsFlow.first(),
-                playCounts = settingsManager.playCountsFlow.first(),
-                customMetadata = settingsManager.customMetadataFlow.first(),
-                settings = mapOf(
-                    "theme" to settingsManager.themeModeFlow.first().name,
-                    "sortOrder" to settingsManager.sortOrderFlow.first().name,
-                    "minDuration" to settingsManager.minDurationFlow.first()
-                )
-            )
-
-            val json = gson.toJson(backupData)
+            val json = gson.toJson(getBackupData())
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 outputStream.write(json.toByteArray())
             } ?: return@withContext Result.failure(Exception("Could not open output stream"))
-            
             Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun autoBackup(treeUri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val directory = DocumentFile.fromTreeUri(context, treeUri)
+            if (directory == null || !directory.canWrite()) {
+                return@withContext Result.failure(Exception("Cannot write to directory"))
+            }
+
+            val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date())
+            val file = directory.createFile("application/json", "snoufly_auto_$timestamp.json")
+                ?: return@withContext Result.failure(Exception("Could not create backup file"))
+
+            val json = gson.toJson(getBackupData())
+            context.contentResolver.openOutputStream(file.uri)?.use { outputStream ->
+                outputStream.write(json.toByteArray())
+            }
+            
+            settingsManager.updateLastBackupTime(System.currentTimeMillis())
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    private suspend fun getBackupData(): BackupData {
+        return BackupData(
+            favoriteIds = settingsManager.favoriteIdsFlow.first(),
+            recentlyPlayedIds = settingsManager.recentlyPlayedIdsFlow.first(),
+            playCounts = settingsManager.playCountsFlow.first(),
+            customMetadata = settingsManager.customMetadataFlow.first(),
+            settings = mapOf(
+                "theme" to settingsManager.themeModeFlow.first().name,
+                "sortOrder" to settingsManager.sortOrderFlow.first().name,
+                "minDuration" to settingsManager.minDurationFlow.first()
+            )
+        )
     }
 
     suspend fun restoreBackup(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
@@ -61,7 +80,6 @@ class BackupManager(
                 gson.fromJson(reader, BackupData::class.java)
             }
 
-            // Restore data
             settingsManager.restoreAllData(
                 favorites = backupData.favoriteIds,
                 recent = backupData.recentlyPlayedIds,
@@ -73,24 +91,6 @@ class BackupManager(
             )
 
             Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun autoBackup(directoryUri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "snoufly_backup_$timeStamp.json"
-            
-            // This requires the directory URI to have persistent permissions
-            // In a real app, we'd use DocumentFile.fromTreeUri
-            val backupFileUri = Uri.withAppendedPath(directoryUri, fileName) 
-            // Note: Simplification here, actual implementation should use DocumentFile to create file in tree
-            
-            createBackup(backupFileUri)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 }
