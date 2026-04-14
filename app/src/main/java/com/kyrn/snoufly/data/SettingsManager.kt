@@ -12,13 +12,8 @@ import java.io.IOException
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-enum class ThemeMode {
-    SYSTEM, LIGHT, DARK
-}
-
-enum class BackupInterval {
-    DAILY, WEEKLY, MONTHLY, NEVER
-}
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class BackupInterval { DAILY, WEEKLY, MONTHLY, NEVER }
 
 class SettingsManager(private val context: Context) {
 
@@ -34,192 +29,90 @@ class SettingsManager(private val context: Context) {
         val EQ_BANDS = stringPreferencesKey("eq_bands") 
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val PLAYBACK_PITCH = floatPreferencesKey("playback_pitch")
-        
-        // Backup settings
         val BACKUP_URI = stringPreferencesKey("backup_uri")
         val BACKUP_INTERVAL = stringPreferencesKey("backup_interval")
         val LAST_BACKUP_TIME = longPreferencesKey("last_backup_time")
-
-        // Lyrics API settings
         val LYRICS_API_TEMPLATE = stringPreferencesKey("lyrics_api_template")
         val LYRICS_USER_AGENT = stringPreferencesKey("lyrics_user_agent")
+        
+        val LANG_REPO_URL = stringPreferencesKey("lang_repo_url")
+        val SELECTED_LANG_CODE = stringPreferencesKey("selected_lang_code")
     }
 
-    private val DEFAULT_LYRICS_API = "https://lrclib.net/api/search?q=%ARTIST% %TRACK%"
-    private val DEFAULT_USER_AGENT = "Snoufly/1.0.0 (https://github.com/devlwte/Snoufly)"
+    val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { p -> 
+        val name = p[PreferencesKeys.THEME_MODE] ?: ThemeMode.SYSTEM.name
+        try { ThemeMode.valueOf(name) } catch (e: Exception) { ThemeMode.SYSTEM }
+    }
 
-    val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
-        .catch { exception ->
-            if (exception is IOException) emit(emptyPreferences()) else throw exception
-        }
-        .map { preferences ->
-            val themeName = preferences[PreferencesKeys.THEME_MODE] ?: ThemeMode.SYSTEM.name
-            try { ThemeMode.valueOf(themeName) } catch (e: Exception) { ThemeMode.SYSTEM }
-        }
+    val sortOrderFlow: Flow<SortOrder> = context.dataStore.data.map { p ->
+        val name = p[PreferencesKeys.SORT_ORDER] ?: SortOrder.RECENTLY_ADDED.name
+        try { SortOrder.valueOf(name) } catch (e: Exception) { SortOrder.RECENTLY_ADDED }
+    }
 
-    val sortOrderFlow: Flow<SortOrder> = context.dataStore.data
-        .catch { exception ->
-            if (exception is IOException) emit(emptyPreferences()) else throw exception
-        }
-        .map { preferences ->
-            val orderName = preferences[PreferencesKeys.SORT_ORDER] ?: SortOrder.RECENTLY_ADDED.name
-            try { SortOrder.valueOf(orderName) } catch (e: Exception) { SortOrder.RECENTLY_ADDED }
-        }
-
-    val minDurationFlow: Flow<Long> = context.dataStore.data
-        .catch { exception ->
-            if (exception is IOException) emit(emptyPreferences()) else throw exception
-        }
-        .map { preferences -> preferences[PreferencesKeys.MIN_DURATION] ?: 30000L }
-
-    val favoriteIdsFlow: Flow<Set<Long>> = context.dataStore.data
-        .catch { exception ->
-            if (exception is IOException) emit(emptyPreferences()) else throw exception
-        }
-        .map { preferences ->
-            preferences[PreferencesKeys.FAVORITE_IDS]?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
-        }
-
-    val recentlyPlayedIdsFlow: Flow<List<Long>> = context.dataStore.data
-        .map { preferences ->
-            preferences[PreferencesKeys.RECENTLY_PLAYED_IDS]?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
-        }
-
-    val playCountsFlow: Flow<Map<Long, Int>> = context.dataStore.data
-        .map { preferences ->
-            val raw = preferences[PreferencesKeys.PLAY_COUNTS] ?: ""
-            if (raw.isBlank()) emptyMap()
-            else {
-                raw.split(",").filter { it.contains(":") }.associate {
-                    val parts = it.split(":")
-                    parts[0].toLong() to parts[1].toInt()
-                }
-            }
-        }
-
-    val customMetadataFlow: Flow<Map<Long, CustomMetadata>> = context.dataStore.data
-        .map { preferences ->
-            val raw = preferences[PreferencesKeys.CUSTOM_METADATA_MAP] ?: ""
-            if (raw.isBlank()) emptyMap()
-            else {
-                raw.split("||").filter { it.contains("::") }.associate {
-                    val entryParts = it.split("::")
-                    entryParts[0].toLong() to CustomMetadata.deserialize(entryParts[1])
-                }
-            }
-        }
+    val minDurationFlow: Flow<Long> = context.dataStore.data.map { it[PreferencesKeys.MIN_DURATION] ?: 30000L }
+    val favoriteIdsFlow: Flow<Set<Long>> = context.dataStore.data.map { it[PreferencesKeys.FAVORITE_IDS]?.mapNotNull { s -> s.toLongOrNull() }?.toSet() ?: emptySet() }
+    val recentlyPlayedIdsFlow: Flow<List<Long>> = context.dataStore.data.map { it[PreferencesKeys.RECENTLY_PLAYED_IDS]?.split(",")?.mapNotNull { s -> s.toLongOrNull() } ?: emptyList() }
+    val playCountsFlow: Flow<Map<Long, Int>> = context.dataStore.data.map { p -> 
+        val raw = p[PreferencesKeys.PLAY_COUNTS] ?: ""
+        if (raw.isBlank()) emptyMap() else raw.split(",").filter { it.contains(":") }.associate { val pts = it.split(":"); pts[0].toLong() to pts[1].toInt() }
+    }
+    val customMetadataFlow: Flow<Map<Long, CustomMetadata>> = context.dataStore.data.map { p ->
+        val raw = p[PreferencesKeys.CUSTOM_METADATA_MAP] ?: ""
+        if (raw.isBlank()) emptyMap() else raw.split("||").filter { it.contains("::") }.associate { val pts = it.split("::"); pts[0].toLong() to CustomMetadata.deserialize(pts[1]) }
+    }
 
     val eqEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.EQ_ENABLED] ?: false }
-    
-    val eqBandsFlow: Flow<List<Int>> = context.dataStore.data.map { prefs ->
-        prefs[PreferencesKeys.EQ_BANDS]?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
-    }
-    
+    val eqBandsFlow: Flow<List<Int>> = context.dataStore.data.map { it[PreferencesKeys.EQ_BANDS]?.split(",")?.mapNotNull { s -> s.toIntOrNull() } ?: emptyList() }
     val playbackSpeedFlow: Flow<Float> = context.dataStore.data.map { it[PreferencesKeys.PLAYBACK_SPEED] ?: 1.0f }
-
     val playbackPitchFlow: Flow<Float> = context.dataStore.data.map { it[PreferencesKeys.PLAYBACK_PITCH] ?: 1.0f }
-
     val backupUriFlow: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.BACKUP_URI] }
-    val backupIntervalFlow: Flow<BackupInterval> = context.dataStore.data.map {
+    val backupIntervalFlow: Flow<BackupInterval> = context.dataStore.data.map { 
         val name = it[PreferencesKeys.BACKUP_INTERVAL] ?: BackupInterval.NEVER.name
         try { BackupInterval.valueOf(name) } catch (e: Exception) { BackupInterval.NEVER }
     }
     val lastBackupTimeFlow: Flow<Long> = context.dataStore.data.map { it[PreferencesKeys.LAST_BACKUP_TIME] ?: 0L }
+    val lyricsApiTemplateFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_API_TEMPLATE] ?: "" }
+    val lyricsUserAgentFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_USER_AGENT] ?: "" }
 
-    val lyricsApiTemplateFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_API_TEMPLATE] ?: DEFAULT_LYRICS_API }
-    val lyricsUserAgentFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LYRICS_USER_AGENT] ?: DEFAULT_USER_AGENT }
+    val langRepoUrlFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LANG_REPO_URL] ?: "https://raw.githubusercontent.com/devlwte/Snoufly/language" }
+    val selectedLangCodeFlow: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.SELECTED_LANG_CODE] ?: "en" }
 
-    suspend fun updateThemeMode(mode: ThemeMode) {
-        context.dataStore.edit { preferences -> preferences[PreferencesKeys.THEME_MODE] = mode.name }
-    }
-
-    suspend fun updateSortOrder(order: SortOrder) {
-        context.dataStore.edit { preferences -> preferences[PreferencesKeys.SORT_ORDER] = order.name }
-    }
-
-    suspend fun updateMinDuration(durationMs: Long) {
-        context.dataStore.edit { preferences -> preferences[PreferencesKeys.MIN_DURATION] = durationMs }
-    }
-
-    suspend fun toggleFavorite(songId: Long) {
-        context.dataStore.edit { preferences ->
-            val currentSet = preferences[PreferencesKeys.FAVORITE_IDS] ?: emptySet()
-            val newSet = currentSet.toMutableSet()
-            val idStr = songId.toString()
-            if (newSet.contains(idStr)) newSet.remove(idStr) else newSet.add(idStr)
-            preferences[PreferencesKeys.FAVORITE_IDS] = newSet
+    suspend fun updateThemeMode(m: ThemeMode) { context.dataStore.edit { it[PreferencesKeys.THEME_MODE] = m.name } }
+    suspend fun updateSortOrder(o: SortOrder) { context.dataStore.edit { it[PreferencesKeys.SORT_ORDER] = o.name } }
+    suspend fun updateMinDuration(d: Long) { context.dataStore.edit { it[PreferencesKeys.MIN_DURATION] = d } }
+    suspend fun toggleFavorite(id: Long) {
+        context.dataStore.edit { p ->
+            val set = (p[PreferencesKeys.FAVORITE_IDS] ?: emptySet()).toMutableSet()
+            if (!set.add(id.toString())) set.remove(id.toString())
+            p[PreferencesKeys.FAVORITE_IDS] = set
         }
     }
-
-    suspend fun updateRecentlyPlayed(ids: List<Long>) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.RECENTLY_PLAYED_IDS] = ids.joinToString(",")
+    suspend fun updateRecentlyPlayed(ids: List<Long>) { context.dataStore.edit { it[PreferencesKeys.RECENTLY_PLAYED_IDS] = ids.joinToString(",") } }
+    suspend fun incrementPlayCount(id: Long) {
+        context.dataStore.edit { p ->
+            val raw = p[PreferencesKeys.PLAY_COUNTS] ?: ""
+            val map = if (raw.isBlank()) mutableMapOf<Long, Int>() else raw.split(",").associate { val pts = it.split(":"); pts[0].toLong() to pts[1].toInt() }.toMutableMap()
+            map[id] = (map[id] ?: 0) + 1
+            p[PreferencesKeys.PLAY_COUNTS] = map.entries.joinToString(",") { "${it.key}:${it.value}" }
         }
     }
-
-    suspend fun incrementPlayCount(songId: Long) {
-        context.dataStore.edit { preferences ->
-            val raw = preferences[PreferencesKeys.PLAY_COUNTS] ?: ""
-            val currentMap = if (raw.isBlank()) mutableMapOf<Long, Int>()
-            else {
-                raw.split(",").filter { it.contains(":") }.associate {
-                    val parts = it.split(":")
-                    parts[0].toLong() to parts[1].toInt()
-                }.toMutableMap()
-            }
-            currentMap[songId] = (currentMap[songId] ?: 0) + 1
-            preferences[PreferencesKeys.PLAY_COUNTS] = currentMap.map { "${it.key}:${it.value}" }.joinToString(",")
+    suspend fun updateCustomMetadata(id: Long, meta: CustomMetadata) {
+        context.dataStore.edit { p ->
+            val raw = p[PreferencesKeys.CUSTOM_METADATA_MAP] ?: ""
+            val map = if (raw.isBlank()) mutableMapOf<Long, CustomMetadata>() else raw.split("||").associate { val pts = it.split("::"); pts[0].toLong() to CustomMetadata.deserialize(pts[1]) }.toMutableMap()
+            map[id] = meta
+            p[PreferencesKeys.CUSTOM_METADATA_MAP] = map.entries.joinToString("||") { "${it.key}::${it.value.serialize()}" }
         }
     }
-
-    suspend fun updateCustomMetadata(songId: Long, metadata: CustomMetadata) {
-        context.dataStore.edit { preferences ->
-            val raw = preferences[PreferencesKeys.CUSTOM_METADATA_MAP] ?: ""
-            val currentMap = if (raw.isBlank()) mutableMapOf<Long, CustomMetadata>()
-            else {
-                raw.split("||").filter { it.contains("::") }.associate {
-                    val entryParts = it.split("::")
-                    entryParts[0].toLong() to CustomMetadata.deserialize(entryParts[1])
-                }.toMutableMap()
-            }
-            currentMap[songId] = metadata
-            preferences[PreferencesKeys.CUSTOM_METADATA_MAP] = currentMap.map { "${it.key}::${it.value.serialize()}" }.joinToString("||")
-        }
-    }
-
-    suspend fun updateEqEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[PreferencesKeys.EQ_ENABLED] = enabled }
-    }
-
-    suspend fun updateEqBands(bands: List<Int>) {
-        context.dataStore.edit { it[PreferencesKeys.EQ_BANDS] = bands.joinToString(",") }
-    }
-
-    suspend fun updatePlaybackSpeed(speed: Float) {
-        context.dataStore.edit { it[PreferencesKeys.PLAYBACK_SPEED] = speed }
-    }
-
-    suspend fun updatePlaybackPitch(pitch: Float) {
-        context.dataStore.edit { it[PreferencesKeys.PLAYBACK_PITCH] = pitch }
-    }
-
-    suspend fun updateBackupSettings(uri: String?, interval: BackupInterval) {
-        context.dataStore.edit {
-            it[PreferencesKeys.BACKUP_URI] = uri ?: ""
-            it[PreferencesKeys.BACKUP_INTERVAL] = interval.name
-        }
-    }
-
-    suspend fun updateLastBackupTime(time: Long) {
-        context.dataStore.edit { it[PreferencesKeys.LAST_BACKUP_TIME] = time }
-    }
-
-    suspend fun updateLyricsSettings(template: String, userAgent: String) {
-        context.dataStore.edit {
-            it[PreferencesKeys.LYRICS_API_TEMPLATE] = template
-            it[PreferencesKeys.LYRICS_USER_AGENT] = userAgent
-        }
-    }
+    suspend fun updateEqEnabled(e: Boolean) { context.dataStore.edit { it[PreferencesKeys.EQ_ENABLED] = e } }
+    suspend fun updateEqBands(b: List<Int>) { context.dataStore.edit { it[PreferencesKeys.EQ_BANDS] = b.joinToString(",") } }
+    suspend fun updatePlaybackSpeed(s: Float) { context.dataStore.edit { it[PreferencesKeys.PLAYBACK_SPEED] = s } }
+    suspend fun updatePlaybackPitch(p: Float) { context.dataStore.edit { it[PreferencesKeys.PLAYBACK_PITCH] = p } }
+    suspend fun updateBackupSettings(u: String?, i: BackupInterval) { context.dataStore.edit { it[PreferencesKeys.BACKUP_URI] = u ?: ""; it[PreferencesKeys.BACKUP_INTERVAL] = i.name } }
+    suspend fun updateLastBackupTime(t: Long) { context.dataStore.edit { it[PreferencesKeys.LAST_BACKUP_TIME] = t } }
+    suspend fun updateLyricsSettings(t: String, u: String) { context.dataStore.edit { it[PreferencesKeys.LYRICS_API_TEMPLATE] = t; it[PreferencesKeys.LYRICS_USER_AGENT] = u } }
+    suspend fun updateLangRepoUrl(u: String) { context.dataStore.edit { it[PreferencesKeys.LANG_REPO_URL] = u } }
+    suspend fun updateSelectedLang(c: String) { context.dataStore.edit { it[PreferencesKeys.SELECTED_LANG_CODE] = c } }
 
     suspend fun restoreAllData(
         favorites: Set<Long>,
@@ -230,14 +123,14 @@ class SettingsManager(private val context: Context) {
         sort: String?,
         minDur: Long?
     ) {
-        context.dataStore.edit { prefs ->
-            prefs[PreferencesKeys.FAVORITE_IDS] = favorites.map { it.toString() }.toSet()
-            prefs[PreferencesKeys.RECENTLY_PLAYED_IDS] = recent.joinToString(",")
-            prefs[PreferencesKeys.PLAY_COUNTS] = counts.map { "${it.key}:${it.value}" }.joinToString(",")
-            prefs[PreferencesKeys.CUSTOM_METADATA_MAP] = metadata.map { "${it.key}::${it.value.serialize()}" }.joinToString("||")
-            theme?.let { prefs[PreferencesKeys.THEME_MODE] = it }
-            sort?.let { prefs[PreferencesKeys.SORT_ORDER] = it }
-            minDur?.let { prefs[PreferencesKeys.MIN_DURATION] = it }
+        context.dataStore.edit { p ->
+            p[PreferencesKeys.FAVORITE_IDS] = favorites.map { it.toString() }.toSet()
+            p[PreferencesKeys.RECENTLY_PLAYED_IDS] = recent.joinToString(",")
+            p[PreferencesKeys.PLAY_COUNTS] = counts.entries.joinToString(",") { "${it.key}:${it.value}" }
+            p[PreferencesKeys.CUSTOM_METADATA_MAP] = metadata.entries.joinToString("||") { "${it.key}::${it.value.serialize()}" }
+            theme?.let { p[PreferencesKeys.THEME_MODE] = it }
+            sort?.let { p[PreferencesKeys.SORT_ORDER] = it }
+            minDur?.let { p[PreferencesKeys.MIN_DURATION] = it }
         }
     }
 }

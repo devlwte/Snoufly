@@ -58,6 +58,11 @@ fun NowPlayingScreen(
     var showLyricsOverlay by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
 
+    // Observar traducciones
+    val translations by mainViewModel.translations.collectAsState()
+    fun t(key: String, fallback: String) = mainViewModel.t("player", key, fallback)
+    // fun t(key: String, fallback: String) = mainViewModel.t("player", key, fallback)
+
     if (currentMediaItem == null) return
 
     val songId = currentMediaItem!!.mediaId.toLongOrNull() ?: -1L
@@ -106,7 +111,7 @@ fun NowPlayingScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                 }
-                Text("NOW PLAYING", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f), letterSpacing = 1.sp)
+                Text(t("title","NOW PLAYING"), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f), letterSpacing = 1.sp)
                 Box {
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showMenu = true }) {
@@ -114,17 +119,17 @@ fun NowPlayingScreen(
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Edit Song Info") },
+                            text = { Text(t("menu_edit", "Edit Song Info")) },
                             leadingIcon = { Icon(Icons.Default.Edit, null) },
                             onClick = { showMenu = false; showEditDialog = true }
                         )
                         DropdownMenuItem(
-                            text = { Text("Resync Online") },
+                            text = { Text(t("menu_resync","Resync Online")) },
                             leadingIcon = { Icon(Icons.Default.CloudDownload, null) },
                             onClick = { showMenu = false; mainViewModel.loadLyricsForSong(songId, title, artist, currentSong.album, duration) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Choose .lrc file") },
+                            text = { Text(t("menu_choose_lrc", "Choose .lrc file")) },
                             leadingIcon = { Icon(Icons.Default.Description, null) },
                             onClick = { showMenu = false; lrcPickerLauncher.launch(arrayOf("*/*")) }
                         )
@@ -162,7 +167,10 @@ fun NowPlayingScreen(
                         currentPosition = currentPosition,
                         isFetching = isFetchingLyrics,
                         onLyricClick = { viewModel.seekTo(it) },
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        translate = { key, fallback ->
+                            mainViewModel.t("player", key, fallback)
+                        }
                     )
                 }
             }
