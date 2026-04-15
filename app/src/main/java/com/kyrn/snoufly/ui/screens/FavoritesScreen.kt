@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.kyrn.snoufly.data.Song
 import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.components.SongItem
+import com.kyrn.snoufly.utils.t
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,10 +23,14 @@ fun FavoritesScreen(
 ) {
     val favorites by viewModel.favorites.collectAsState()
 
+    // Atajo local para traducciones de favoritos
+    @Composable
+    fun tf(key: String, fallback: String) = t(key, fallback, "favorites")
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Favorites", fontWeight = FontWeight.Bold) }
+                title = { Text(tf("title", "Favorites"), fontWeight = FontWeight.Bold) }
             )
         }
     ) { padding ->
@@ -37,7 +42,7 @@ fun FavoritesScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No favorite songs yet",
+                    text = tf("empty", "No favorite songs yet"),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -58,8 +63,8 @@ fun FavoritesScreen(
                             val index = favorites.indexOf(song)
                             onSongClick(index)
                         },
-                        onEditClick = { onEditSong(song) }, // Habilitado globalmente
-                        onSelectLrcClick = { /* Manual LRC implementation */ }
+                        onEditClick = { onEditSong(song) },
+                        onSelectLrcClick = { /* Manual LRC */ }
                     )
                 }
             }
