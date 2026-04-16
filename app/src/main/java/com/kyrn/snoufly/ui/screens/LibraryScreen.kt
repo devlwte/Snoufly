@@ -29,6 +29,7 @@ import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.SortOrder
 import com.kyrn.snoufly.ui.components.RecentlyPlayedCarousel
 import com.kyrn.snoufly.ui.components.SongItem
+import com.kyrn.snoufly.utils.t
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,9 +49,9 @@ fun LibraryScreen(
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val favoriteIds by viewModel.favoriteIds.collectAsState()
     
-    // Observar traducciones
-    val translations by viewModel.translations.collectAsState()
-    fun t(key: String, fallback: String) = viewModel.t("library", key, fallback)
+    // Helper local para usar la nueva función t() global apuntando a la sección "library"
+    @Composable
+    fun tl(key: String, fallback: String) = t(key, fallback, "library")
 
     var isSearchActive by remember { mutableStateOf(false) }
     var selectingLrcForSongId by remember { mutableStateOf<Long?>(null) }
@@ -78,15 +79,11 @@ fun LibraryScreen(
             Column(modifier = Modifier.statusBarsPadding()) { 
                 AnimatedContent(
                     targetState = isSearchActive,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "TopBarAnimation"
                 ) { searchActive ->
                     if (searchActive) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .padding(horizontal = 8.dp),
+                            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(onClick = { 
@@ -99,7 +96,7 @@ fun LibraryScreen(
                                 value = searchQuery,
                                 onValueChange = { viewModel.updateSearchQuery(it) },
                                 modifier = Modifier.weight(1f),
-                                placeholder = { Text(t("search_placeholder", "Search songs, artists...")) },
+                                placeholder = { Text(tl("search_placeholder", "Search songs, artists...")) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -111,10 +108,7 @@ fun LibraryScreen(
                         }
                     } else {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -153,20 +147,22 @@ fun LibraryScreen(
                     items(sortOrders) { order ->
                         val key = when(order) {
                             SortOrder.RECENTLY_ADDED -> "tabs.recents"
-                            SortOrder.OLDEST_FIRST -> "tabs.oldest"
-                            SortOrder.ALPHABETICAL -> "tabs.az"
-                            SortOrder.ARTIST -> "tabs.artists"
-                            SortOrder.ALBUM -> "tabs.albums"
-                            SortOrder.DURATION -> "tabs.duration"
-                            // else -> order.name.lowercase()
+                            SortOrder.OLDEST_FIRST   -> "tabs.oldest"
+                            SortOrder.ALPHABETICAL   -> "tabs.az"
+                            SortOrder.ARTIST         -> "tabs.artists"
+                            SortOrder.ALBUM          -> "tabs.albums"
+                            SortOrder.DURATION       -> "tabs.duration"
                         }
-                        val displayName = t(key, order.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
                         
+                        // OPTIMIZACIÓN: Formateamos el nombre técnico para que se vea bien por defecto
+                        val defaultLabel = order.name.replace("_", " ")
+                            .lowercase()
+                            .replaceFirstChar { it.uppercase() }
+
                         FilterChip(
                             selected = currentSortOrder == order,
                             onClick = { viewModel.updateSortOrder(order) },
-                            label = { Text(displayName, fontSize = 12.sp) },
-                            border = null
+                            label = { Text(tl(key, defaultLabel), fontSize = 12.sp) }
                         )
                     }
                 }
@@ -187,15 +183,14 @@ fun LibraryScreen(
                         if (listenAgain.isNotEmpty()) {
                             item {
                                 RecentlyPlayedCarousel(
-                                    title = t("listen_again", "Listen Again"),
+                                    title = tl("listen_again", "Listen Again"),
                                     songs = listenAgain.take(10),
                                     onSongClick = { song ->
                                         val index = songs.indexOf(song)
                                         if (index != -1) onSongClick(index)
                                     },
-                                    onHeaderClick = if (listenAgain.size > 10) onSeeAllListenAgain else null,
-                                    showSeeAllButton = listenAgain.size > 10,
                                     onSeeAllClick = onSeeAllListenAgain,
+                                    showSeeAllButton = listenAgain.size > 10,
                                     itemWidth = 140.dp
                                 )
                             }
@@ -204,7 +199,7 @@ fun LibraryScreen(
                         if (recentlyPlayed.isNotEmpty()) {
                             item {
                                 RecentlyPlayedCarousel(
-                                    title = t("recently_played", "Recently Played"),
+                                    title = tl("recently_played", "Recently Played"),
                                     songs = recentlyPlayed,
                                     onSongClick = { song -> 
                                         val index = songs.indexOf(song)
@@ -218,7 +213,7 @@ fun LibraryScreen(
                         if (recentlyPlayed.isNotEmpty() || listenAgain.isNotEmpty()) {
                             item {
                                 Text(
-                                    text = t("all_songs", "Your Library"),
+                                    text = tl("all_songs", "Your Library"),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

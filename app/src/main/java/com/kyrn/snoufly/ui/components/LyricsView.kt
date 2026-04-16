@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.kyrn.snoufly.data.LyricLine
 import com.kyrn.snoufly.ui.MainViewModel
 import kotlinx.coroutines.launch
+import com.kyrn.snoufly.utils.t
 
 @Composable
 fun LyricsView(
@@ -31,8 +32,7 @@ fun LyricsView(
     currentPosition: Long,
     isFetching: Boolean,
     onLyricClick: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-    translate: (String, String) -> String
+    modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -65,7 +65,7 @@ fun LyricsView(
             CircularProgressIndicator(color = Color.White)
         } else if (lyrics.isEmpty()) {
             Text(
-                text = translate("lyrics_not_found", "No lyrics found online"),
+                text = t("no_lyrics", "No lyrics found online", "player"),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.White.copy(alpha = 0.5f)
             )

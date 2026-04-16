@@ -47,6 +47,8 @@ import com.kyrn.snoufly.ui.components.SongItem
 import com.kyrn.snoufly.ui.navItems
 import com.kyrn.snoufly.ui.screens.*
 import com.kyrn.snoufly.ui.theme.SnouflyTheme
+import com.kyrn.snoufly.utils.LocalTranslations
+import com.kyrn.snoufly.utils.t
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +69,9 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
+
+            // Centralizamos la observación de traducciones
+            val translations by mainViewModel.translations.collectAsState()
 
             var globalEditingSong by remember { mutableStateOf<com.kyrn.snoufly.data.Song?>(null) }
 
@@ -135,162 +140,171 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            SnouflyTheme(darkTheme = darkTheme) {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    bottomBar = {
-                        if (currentDestination?.route != Screen.Player.route) {
-                            Column {
-                                val currentMediaItem by playbackViewModel.currentMediaItem.collectAsState()
-                                val isPlaying by playbackViewModel.isPlaying.collectAsState()
-                                
-                                if (currentMediaItem != null) {
-                                    MiniPlayer(
-                                        currentMediaItem = currentMediaItem,
-                                        isPlaying = isPlaying,
-                                        onPlayPause = { playbackViewModel.togglePlayPause() },
-                                        onClick = { if (canNavigate()) navController.navigate(Screen.Player.route) }
-                                    )
-                                }
-                                
-                                NavigationBar(windowInsets = WindowInsets.navigationBars) {
-                                    navItems.forEach { screen ->
-                                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                                        NavigationBarItem(
-                                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                                            label = { Text(screen.title) },
-                                            selected = selected,
-                                            onClick = {
-                                                if (canNavigate()) {
-                                                    if (screen.route == Screen.Library.route) {
-                                                        if (navController.currentDestination?.route != Screen.Library.route) {
-                                                            navController.popBackStack(navController.graph.findStartDestination().id, false)
-                                                        }
-                                                    } else {
-                                                        navController.navigate(screen.route) {
-                                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                                            launchSingleTop = true
-                                                            restoreState = true
+            // Proveedor global para que 't()' funcione en cualquier pantalla
+            CompositionLocalProvider(LocalTranslations provides translations) {
+                SnouflyTheme(darkTheme = darkTheme) {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        bottomBar = {
+                            if (currentDestination?.route != Screen.Player.route) {
+                                Column {
+                                    val currentMediaItem by playbackViewModel.currentMediaItem.collectAsState()
+                                    val isPlaying by playbackViewModel.isPlaying.collectAsState()
+
+                                    if (currentMediaItem != null) {
+                                        MiniPlayer(
+                                            currentMediaItem = currentMediaItem,
+                                            isPlaying = isPlaying,
+                                            onPlayPause = { playbackViewModel.togglePlayPause() },
+                                            onClick = { if (canNavigate()) navController.navigate(Screen.Player.route) }
+                                        )
+                                    }
+
+                                    NavigationBar(windowInsets = WindowInsets.navigationBars) {
+                                        navItems.forEach { screen ->
+                                            val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                                            NavigationBarItem(
+                                                icon = { Icon(screen.icon, contentDescription = screen.title) },
+                                                // Uso de la nueva función t()
+                                                label = { 
+                                                    val labelKey = when(screen.route) {
+                                                        Screen.Library.route -> "tabs.recents" // O una clave común
+                                                        else -> "title" 
+                                                    }
+                                                    Text(t(labelKey, screen.title, section = if(screen.route == Screen.Library.route) "library" else "common")) 
+                                                },
+                                                selected = selected,
+                                                onClick = {
+                                                    if (canNavigate()) {
+                                                        if (screen.route == Screen.Library.route) {
+                                                            if (navController.currentDestination?.route != Screen.Library.route) {
+                                                                navController.popBackStack(navController.graph.findStartDestination().id, false)
+                                                            }
+                                                        } else {
+                                                            navController.navigate(screen.route) {
+                                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                                launchSingleTop = true
+                                                                restoreState = true
+                                                            }
                                                         }
                                                     }
                                                 }
-                                            }
-                                        )
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                ) { innerPadding ->
-                    Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                        NavHost(
-                            navController = navController, 
-                            startDestination = Screen.Library.route,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            composable(Screen.Library.route) {
-                                LibraryScreen(
-                                    viewModel = mainViewModel,
-                                    onSongClick = { index ->
-                                        val songs = mainViewModel.songs.value
-                                        playbackViewModel.playSongs(songs, index)
-                                        navController.navigate(Screen.Player.route)
-                                    },
-                                    onSettingsClick = { if (canNavigate()) navController.navigate(Screen.Settings.route) },
-                                    onSeeAllListenAgain = { if (canNavigate()) navController.navigate("listen_again") },
-                                    onEditSong = { song -> globalEditingSong = song }
-                                )
-                            }
-                            @OptIn(ExperimentalMaterial3Api::class)
-                            composable("listen_again") {
-                                // RESTAURADO: Ahora usa el flujo inteligente 'listenAgain'
-                                val listenAgainSongs by mainViewModel.listenAgain.collectAsState()
-                                val favoriteIds by mainViewModel.favoriteIds.collectAsState()
-                                
-                                Scaffold(
-                                    topBar = {
-                                        TopAppBar(
-                                            title = { Text("Listen Again", fontWeight = FontWeight.Bold) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { if (canNavigate()) navController.popBackStack() }) {
-                                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                            NavHost(
+                                navController = navController,
+                                startDestination = Screen.Library.route,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                composable(Screen.Library.route) {
+                                    LibraryScreen(
+                                        viewModel = mainViewModel,
+                                        onSongClick = { index ->
+                                            val songs = mainViewModel.songs.value
+                                            playbackViewModel.playSongs(songs, index)
+                                            navController.navigate(Screen.Player.route)
+                                        },
+                                        onSettingsClick = { if (canNavigate()) navController.navigate(Screen.Settings.route) },
+                                        onSeeAllListenAgain = { if (canNavigate()) navController.navigate("listen_again") },
+                                        onEditSong = { song -> globalEditingSong = song }
+                                    )
+                                }
+                                @OptIn(ExperimentalMaterial3Api::class)
+                                composable("listen_again") {
+                                    val listenAgainSongs by mainViewModel.listenAgain.collectAsState()
+                                    val favoriteIds by mainViewModel.favoriteIds.collectAsState()
+
+                                    Scaffold(
+                                        topBar = {
+                                            TopAppBar(
+                                                title = { Text(t("listen_again", "Listen Again", "library"), fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { if (canNavigate()) navController.popBackStack() }) {
+                                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    ) { p ->
+                                        if (listenAgainSongs.isEmpty()) {
+                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                                Text(t("listen_again_sub", "Keep listening!", "library"))
+                                            }
+                                        } else {
+                                            LazyColumn(
+                                                modifier = Modifier.fillMaxSize().padding(p),
+                                                contentPadding = PaddingValues(bottom = 80.dp)
+                                            ) {
+                                                items(listenAgainSongs) { song ->
+                                                    SongItem(
+                                                        song = song,
+                                                        isFavorite = favoriteIds.contains(song.id),
+                                                        onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
+                                                        onClick = {
+                                                            val index = listenAgainSongs.indexOf(song)
+                                                            playbackViewModel.playSongs(listenAgainSongs, index)
+                                                            navController.navigate(Screen.Player.route)
+                                                        },
+                                                        onEditClick = { globalEditingSong = song },
+                                                        onSelectLrcClick = { /* Manual LRC */ }
+                                                    )
                                                 }
                                             }
-                                        )
-                                    }
-                                ) { p ->
-                                    if (listenAgainSongs.isEmpty()) {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                                            Text("Keep listening to discover your favorites!")
-                                        }
-                                    } else {
-                                        LazyColumn(
-                                            modifier = Modifier.fillMaxSize().padding(p),
-                                            contentPadding = PaddingValues(bottom = 80.dp)
-                                        ) {
-                                            items(listenAgainSongs) { song ->
-                                                SongItem(
-                                                    song = song,
-                                                    isFavorite = favoriteIds.contains(song.id),
-                                                    onToggleFavorite = { mainViewModel.toggleFavorite(song.id) },
-                                                    onClick = {
-                                                        val index = listenAgainSongs.indexOf(song)
-                                                        playbackViewModel.playSongs(listenAgainSongs, index)
-                                                        navController.navigate(Screen.Player.route)
-                                                    },
-                                                    onEditClick = { globalEditingSong = song },
-                                                    onSelectLrcClick = { /* Manual LRC */ }
-                                                )
-                                            }
                                         }
                                     }
                                 }
-                            }
-                            composable(Screen.Favorites.route) {
-                                FavoritesScreen(
-                                    viewModel = mainViewModel,
-                                    onSongClick = { index ->
-                                        val songs = mainViewModel.favorites.value
-                                        playbackViewModel.playSongs(songs, index)
-                                        navController.navigate(Screen.Player.route)
-                                    },
-                                    onEditSong = { song -> globalEditingSong = song }
-                                )
-                            }
-                            composable(Screen.Player.route) {
-                                NowPlayingScreen(
-                                    viewModel = playbackViewModel,
-                                    mainViewModel = mainViewModel,
-                                    onBackClick = { if (canNavigate()) navController.popBackStack() }
-                                )
-                            }
-                            composable(Screen.Settings.route) {
-                                SettingsScreen(
-                                    viewModel = mainViewModel,
-                                    onEqualizerClick = { if (canNavigate()) navController.navigate("equalizer") }
-                                )
-                            }
-                            composable("equalizer") {
-                                EqualizerScreen(
-                                    mainViewModel = mainViewModel,
-                                    playbackViewModel = playbackViewModel,
-                                    onBackClick = { if (canNavigate()) navController.popBackStack() }
-                                )
+                                composable(Screen.Favorites.route) {
+                                    FavoritesScreen(
+                                        viewModel = mainViewModel,
+                                        onSongClick = { index ->
+                                            val songs = mainViewModel.favorites.value
+                                            playbackViewModel.playSongs(songs, index)
+                                            navController.navigate(Screen.Player.route)
+                                        },
+                                        onEditSong = { song -> globalEditingSong = song }
+                                    )
+                                }
+                                composable(Screen.Player.route) {
+                                    NowPlayingScreen(
+                                        viewModel = playbackViewModel,
+                                        mainViewModel = mainViewModel,
+                                        onBackClick = { if (canNavigate()) navController.popBackStack() }
+                                    )
+                                }
+                                composable(Screen.Settings.route) {
+                                    SettingsScreen(
+                                        viewModel = mainViewModel,
+                                        onEqualizerClick = { if (canNavigate()) navController.navigate("equalizer") }
+                                    )
+                                }
+                                composable("equalizer") {
+                                    EqualizerScreen(
+                                        mainViewModel = mainViewModel,
+                                        playbackViewModel = playbackViewModel,
+                                        onBackClick = { if (canNavigate()) navController.popBackStack() }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                globalEditingSong?.let { song ->
-                    EditSongDialog(
-                        song = song,
-                        onDismiss = { globalEditingSong = null },
-                        onConfirm = { title, artist, album ->
-                            // El ViewModel maneja el metadato personalizado
-                            mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
-                            globalEditingSong = null
-                        }
-                    )
+                    globalEditingSong?.let { song ->
+                        EditSongDialog(
+                            song = song,
+                            // mainViewModel = mainViewModel,
+                            onDismiss = { globalEditingSong = null },
+                            onConfirm = { title, artist, album ->
+                                mainViewModel.updateSongMetadata(song.id, title, artist, album, null)
+                                globalEditingSong = null
+                            }
+                        )
+                    }
                 }
             }
         }

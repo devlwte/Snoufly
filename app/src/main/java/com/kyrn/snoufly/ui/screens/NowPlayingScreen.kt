@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +33,7 @@ import com.kyrn.snoufly.ui.MainViewModel
 import com.kyrn.snoufly.ui.components.LyricsView
 import com.kyrn.snoufly.ui.components.SnouflyImage
 import com.kyrn.snoufly.ui.components.EditSongDialog
+import com.kyrn.snoufly.utils.t
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,48 +44,57 @@ fun NowPlayingScreen(
 ) {
     val context = LocalContext.current
     val currentMediaItem by viewModel.currentMediaItem.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
+    val isPlaying       by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
-    val duration by viewModel.duration.collectAsState()
-    val shuffleMode by viewModel.shuffleModeEnabled.collectAsState()
-    val repeatMode by viewModel.repeatMode.collectAsState()
-    val favoriteIds by mainViewModel.favoriteIds.collectAsState()
-    
-    val lyrics by mainViewModel.currentLyrics.collectAsState()
+    val duration        by viewModel.duration.collectAsState()
+    val shuffleMode     by viewModel.shuffleModeEnabled.collectAsState()
+    val repeatMode      by viewModel.repeatMode.collectAsState()
+    val favoriteIds     by mainViewModel.favoriteIds.collectAsState()
+
+    val lyrics          by mainViewModel.currentLyrics.collectAsState()
     val isFetchingLyrics by mainViewModel.isFetchingLyrics.collectAsState()
-    val enrichedSongs by mainViewModel.enrichedSongs.collectAsState()
+    val enrichedSongs   by mainViewModel.enrichedSongs.collectAsState()
 
     var showLyricsOverlay by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf(false) }
-
-    // Observar traducciones
-    val translations by mainViewModel.translations.collectAsState()
-    fun t(key: String, fallback: String) = mainViewModel.t("player", key, fallback)
-    // fun t(key: String, fallback: String) = mainViewModel.t("player", key, fallback)
+    var showEditDialog    by remember { mutableStateOf(false) }
 
     if (currentMediaItem == null) return
 
-    val songId = currentMediaItem!!.mediaId.toLongOrNull() ?: -1L
+    val songId      = currentMediaItem!!.mediaId.toLongOrNull() ?: -1L
     val currentSong = enrichedSongs.find { it.id == songId } ?: return
-    
-    val isFavorite = favoriteIds.contains(songId)
-    val title = currentSong.title
-    val artist = currentSong.artist
+
+    val isFavorite  = favoriteIds.contains(songId)
+    val title       = currentSong.title
+    val artist      = currentSong.artist
     val albumArtUri = currentSong.albumArtUri
 
-    LaunchedEffect(currentSong) {
-        mainViewModel.loadLyricsForSong(songId, title, artist, currentSong.album, duration)
+    LaunchedEffect(songId) {
+        if (songId != -1L) {
+            mainViewModel.loadLyricsForSong(songId, title, artist, currentSong.album, duration)
+        }
     }
 
     val lrcPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri: Uri? ->
             uri?.let {
-                try { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
                 mainViewModel.updateManualLrc(songId, it.toString())
             }
         }
     )
+
+    // Optimizaciones de Lambdas y Formateo
+    val onResyncClick by remember(songId, title, artist, currentSong.album, duration) {
+        derivedStateOf { { mainViewModel.loadLyricsForSong(songId, title, artist, currentSong.album, duration) } }
+    }
+    val onChooseLrc by remember { derivedStateOf { { lrcPickerLauncher.launch(arrayOf("*/*")) } } }
+    val currentTimeStr by remember(currentPosition) { derivedStateOf { formatTime(currentPosition) } }
+    val durationStr by remember(duration) { derivedStateOf { formatTime(duration) } }
 
     Box(modifier = Modifier.fillMaxSize()) {
         SnouflyImage(
@@ -93,10 +102,14 @@ fun NowPlayingScreen(
             modifier = Modifier.fillMaxSize().blur(60.dp).graphicsLayer(alpha = 0.5f),
             contentScale = ContentScale.Crop
         )
-        
-        Box(modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f)))
-        ))
+
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f))
+                )
+            )
+        )
 
         Column(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp),
@@ -111,7 +124,12 @@ fun NowPlayingScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                 }
-                Text(t("title","NOW PLAYING"), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f), letterSpacing = 1.sp)
+                Text(
+                    t("title", "NOW PLAYING", "player"),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.6f),
+                    letterSpacing = 1.sp
+                )
                 Box {
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showMenu = true }) {
@@ -119,25 +137,25 @@ fun NowPlayingScreen(
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text(t("menu_edit", "Edit Song Info")) },
+                            text = { Text(t("menu_edit", "Edit Song Info", "player")) },
                             leadingIcon = { Icon(Icons.Default.Edit, null) },
                             onClick = { showMenu = false; showEditDialog = true }
                         )
                         DropdownMenuItem(
-                            text = { Text(t("menu_resync","Resync Online")) },
+                            text = { Text(t("menu_resync", "Resync Online", "player")) },
                             leadingIcon = { Icon(Icons.Default.CloudDownload, null) },
-                            onClick = { showMenu = false; mainViewModel.loadLyricsForSong(songId, title, artist, currentSong.album, duration) }
+                            onClick = { showMenu = false; onResyncClick() }
                         )
                         DropdownMenuItem(
-                            text = { Text(t("menu_choose_lrc", "Choose .lrc file")) },
+                            text = { Text(t("menu_choose_lrc", "Choose .lrc file", "player")) },
                             leadingIcon = { Icon(Icons.Default.Description, null) },
-                            onClick = { showMenu = false; lrcPickerLauncher.launch(arrayOf("*/*")) }
+                            onClick = { showMenu = false; onChooseLrc() }
                         )
                     }
                 }
             }
 
-            // Central Area (Lyrics vs Art)
+            // Central Area
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = !showLyricsOverlay,
@@ -167,10 +185,7 @@ fun NowPlayingScreen(
                         currentPosition = currentPosition,
                         isFetching = isFetchingLyrics,
                         onLyricClick = { viewModel.seekTo(it) },
-                        modifier = Modifier.fillMaxSize(),
-                        translate = { key, fallback ->
-                            mainViewModel.t("player", key, fallback)
-                        }
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
@@ -205,8 +220,8 @@ fun NowPlayingScreen(
                 )
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(currentPosition), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
-                    Text(formatTime(duration), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+                    Text(currentTimeStr, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+                    Text(durationStr, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))

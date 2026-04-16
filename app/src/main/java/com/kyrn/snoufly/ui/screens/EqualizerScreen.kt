@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyrn.snoufly.playback.PlaybackViewModel
 import com.kyrn.snoufly.ui.MainViewModel
+import com.kyrn.snoufly.utils.t
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -33,6 +33,10 @@ fun EqualizerScreen(
     val playbackPitch by mainViewModel.playbackPitchFlow.collectAsState()
     val eqBands by mainViewModel.eqBandsFlow.collectAsState()
 
+    // Atajo local para traducciones del ecualizador
+    @Composable
+    fun te(key: String, fallback: String) = t(key, fallback, "equalizer")
+
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val categories = mainViewModel.audioCategories.keys.toList()
 
@@ -43,7 +47,7 @@ fun EqualizerScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(mainViewModel.t("equalizer", "title", "Sound Laboratory"), fontWeight = FontWeight.ExtraBold) },
+                title = { Text(te("title", "Sound Laboratory"), fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -81,14 +85,14 @@ fun EqualizerScreen(
                     Icon(Icons.Default.AutoAwesome, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(mainViewModel.t("equalizer", "engine_name", "Engine Snoufly v5.2"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(mainViewModel.t("equalizer", "engine_active", "Engine Active"), style = MaterialTheme.typography.bodySmall)
+                        Text(te("engine_name", "Engine Snoufly v5.2"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(te("engine_active", "Engine Active"), style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = eqEnabled, onCheckedChange = { mainViewModel.updateEqEnabled(it) })
                 }
             }
 
-            Text(mainViewModel.t("equalizer", "presets_title", "Presets"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(te("presets_title", "Presets"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             SecondaryScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 0.dp,
@@ -122,31 +126,33 @@ fun EqualizerScreen(
                 }
             }
 
-            Text(mainViewModel.t("equalizer", "sonic_engine", "Sonic Engine"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(te("sonic_engine", "Sonic Engine"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             AudioControlSlider(
-                label = mainViewModel.t("equalizer", "speed", "Speed"),
+                label = te("speed", "Speed"),
                 value = playbackSpeed,
                 valueRange = 0.5f..2.0f, 
                 onValueChange = { mainViewModel.updatePlaybackSpeed(it) },
                 formattedValue = String.format("%.2fx", playbackSpeed)
             )
             AudioControlSlider(
-                label = mainViewModel.t("equalizer", "pitch", "Pitch"),
+                label = te("pitch", "Vocal Tone (Pitch)"),
                 value = playbackPitch,
                 valueRange = 0.5f..2.0f, 
                 onValueChange = { mainViewModel.updatePlaybackPitch(it) },
                 formattedValue = String.format("%.2fx", playbackPitch)
             )
 
-            Text(mainViewModel.t("equalizer", "studio_bands", "Frequencies"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(te("studio_bands", "Studio Frequency Bands"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Row(
                 modifier = Modifier.fillMaxWidth().height(220.dp).padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val labels = listOf("BASS", "LOW", "MID", "HIGH", "AIR")
+                val bandKeys = listOf("bass", "low", "mid", "high", "air")
+                val fallbacks = listOf("BASS", "LOW", "MID", "HIGH", "AIR")
+                
                 displayBands.forEachIndexed { index, level ->
                     BandSlider(
-                        label = labels[index],
+                        label = te(bandKeys[index], fallbacks[index]),
                         level = level,
                         enabled = eqEnabled,
                         onLevelChange = { newLevel ->
